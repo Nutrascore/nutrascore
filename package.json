@@ -1,0 +1,19 @@
+{
+  "name": "nutrascore",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web",
+    "apps/api"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:api": "npm --workspace apps/api run dev",
+    "check": "npm --workspace apps/web run check && npm --workspace apps/api run typecheck",
+    "lint": "npm --workspace apps/web run lint",
+    "test": "npm --workspace apps/web run test:unit && npm --workspace apps/api run test",
+    "build": "npm --workspace apps/web run build && npm --workspace apps/api run build",
+    "db:generate": "npm --workspace apps/api run db:generate",
+    "db:migrate": "npm --workspace apps/api run db:migrate"
+  }
+}
