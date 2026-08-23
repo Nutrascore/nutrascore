@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: nutrascore
+          POSTGRES_USER: nutrascore
+          POSTGRES_PASSWORD: nutrascore_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nutrascore -d nutrascore"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Database migration
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://nutrascore:nutrascore_dev@localhost:5432/nutrascore
+
+      - name: Check
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
