@@ -16,6 +16,9 @@
 		"test": "npm run test:unit && npm run test:e2e",
 		"test:e2e": "playwright install && playwright test"
 	},
+	"optionalDependencies": {
+		"@rolldown/binding-linux-x64-gnu": "1.2.5"
+	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.60.0",

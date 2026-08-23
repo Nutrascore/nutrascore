@@ -1,4 +1,4 @@
 export interface HealthResponse {
-status: string;
-database: string;
+	status: string;
+	database: string;
 }
