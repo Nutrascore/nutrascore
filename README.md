@@ -1,2 +1,5 @@
-# nutrascore
-A platform for discovering, comparing, and understanding packaged food products in India.
+# NutraScore
+
+A platform for discovering and comparing packaged food products in India.
+
+This project is currently under development.
