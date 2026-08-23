@@ -26,6 +26,9 @@
     "typescript": "^7.0.2",
     "zod": "^4.4.3"
   },
+  "optionalDependencies": {
+    "@typescript/typescript-linux-x64": "7.0.2"
+  },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/pg": "^8.23.1",
