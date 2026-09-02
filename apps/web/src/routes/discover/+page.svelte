@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import ProductCard from '$lib/components/ProductCard.svelte';
 	import { products } from '$lib/data/products';
 	import { compareStore } from '$lib/stores/compareStore';
@@ -89,6 +90,8 @@
 	);
 </script>
 
+```svelte
+
 <svelte:head>
 	<title>Discover Products — NutraScore</title>
 </svelte:head>
@@ -112,7 +115,7 @@
 					<span class="filter-label">Category</span>
 
 					<div class="filter-options">
-						{#each filters.category as category}
+						{#each filters.category as category (category)}
 							<button
 								type="button"
 								class="filter-option"
@@ -129,7 +132,7 @@
 					<span class="filter-label">Nutrition</span>
 
 					<div class="filter-options">
-						{#each filters.nutrition as nutrition}
+						{#each filters.nutrition as nutrition (nutrition)}
 							<button
 								type="button"
 								class="filter-option"
@@ -146,7 +149,7 @@
 					<span class="filter-label">Diet</span>
 
 					<div class="filter-options">
-						{#each filters.diet as diet}
+						{#each filters.diet as diet (diet)}
 							<button
 								type="button"
 								class="filter-option"
@@ -170,14 +173,14 @@
 			</div>
 
 			{#if $compareStore.length > 0}
-				<a href="/compare" class="compare-button">
+				<a href={resolve('/compare')} class="compare-button">
 					Compare ({$compareStore.length})
 				</a>
 			{/if}
 		</div>
 
 		<div class="product-grid">
-			{#each filteredProducts as product}
+			{#each filteredProducts as product (product.id)}
 				<ProductCard {product} selectMode={true} onSelect={() => selectProduct(product.id)} />
 			{:else}
 				<p class="no-results">No products found matching your search and filters.</p>
@@ -185,6 +188,7 @@
 		</div>
 	</section>
 </main>
+```
 
 <style>
 	main {

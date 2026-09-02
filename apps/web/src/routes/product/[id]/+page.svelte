@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import { products } from '$lib/data/products';
 
 	let productId = $derived(page.params.id);
@@ -12,6 +13,8 @@
 		console.log('Add to compare:', product.name);
 	}
 </script>
+
+```svelte
 
 <svelte:head>
 	<title>
@@ -38,7 +41,7 @@
 				<p class="brand">{product.brand}</p>
 
 				<div class="labels">
-					{#each product.labels as label}
+					{#each product.labels as label (label)}
 						<span>{label}</span>
 					{/each}
 				</div>
@@ -98,10 +101,11 @@
 
 			<p>The product you're looking for doesn't exist.</p>
 
-			<a href="/discover">Back to Discover</a>
+			<a href={resolve('/discover')}>Back to Discover</a>
 		</section>
 	{/if}
 </main>
+```
 
 <style>
 	main {

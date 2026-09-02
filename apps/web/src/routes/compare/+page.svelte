@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { compareStore } from '$lib/stores/compareStore';
 	import { products } from '$lib/data/products';
 
@@ -15,13 +16,15 @@
 	let secondProduct = $derived(selectedProducts[1]);
 
 	function addProduct() {
-		goto('/discover');
+		goto(resolve('/discover'));
 	}
 
 	function removeProduct(productId: string) {
 		compareStore.removeProduct(productId);
 	}
 </script>
+
+```svelte
 
 <svelte:head>
 	<title>Compare Products — NutraScore</title>
@@ -164,7 +167,7 @@
 			<div class="labels-comparison">
 				<div>
 					<div class="labels">
-						{#each firstProduct.labels as label}
+						{#each firstProduct.labels as label (label)}
 							<span>{label}</span>
 						{/each}
 					</div>
@@ -172,7 +175,7 @@
 
 				<div>
 					<div class="labels">
-						{#each secondProduct.labels as label}
+						{#each secondProduct.labels as label (label)}
 							<span>{label}</span>
 						{/each}
 					</div>
@@ -185,6 +188,7 @@
 		</p>
 	{/if}
 </main>
+```
 
 <style>
 	main {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	let query = $state('');
 
@@ -8,15 +9,17 @@
 		const trimmedQuery = query.trim();
 
 		if (trimmedQuery) {
-			goto(`/discover?q=${encodeURIComponent(trimmedQuery)}`);
+			goto(resolve(`/discover?q=${encodeURIComponent(trimmedQuery)}`));
 		} else {
-			goto('/discover');
+			goto(resolve('/discover'));
 		}
 	}
 </script>
 
+```svelte
+
 <nav>
-	<a href="/" class="logo">
+	<a href={resolve('/')} class="logo">
 		<img src="/nutrascore-logo-bg.png" alt="NutraScore" />
 	</a>
 
@@ -52,11 +55,12 @@
 	{/if}
 
 	<div class="nav-links">
-		<a href="/categories">Categories</a>
-		<a href="/compare">Compare</a>
-		<a href="/discover">Discover</a>
+		<a href={resolve('/categories')}>Categories</a>
+		<a href={resolve('/compare')}>Compare</a>
+		<a href={resolve('/discover')}>Discover</a>
 	</div>
 </nav>
+```
 
 <style>
 	nav {
