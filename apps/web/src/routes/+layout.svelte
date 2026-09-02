@@ -7,8 +7,10 @@
 
 <slot />
 
-<style> :global(body) {
-	margin: 0;
-}</style>	
-
 <Footer />
+
+<style>
+	:global(body) {
+		margin: 0;
+	}
+</style>

@@ -22,16 +22,11 @@
 		diet: [] as string[]
 	});
 
-	function toggleFilter(
-		type: 'category' | 'nutrition' | 'diet',
-		value: string
-	) {
+	function toggleFilter(type: 'category' | 'nutrition' | 'diet', value: string) {
 		const selected = selectedFilters[type];
 
 		if (selected.includes(value)) {
-			selectedFilters[type] = selected.filter(
-				(item) => item !== value
-			);
+			selectedFilters[type] = selected.filter((item) => item !== value);
 		} else {
 			selectedFilters[type].push(value);
 		}
@@ -89,12 +84,7 @@
 					return true;
 				});
 
-			return (
-				searchMatches &&
-				categoryMatches &&
-				nutritionMatches &&
-				dietMatches
-			);
+			return searchMatches && categoryMatches && nutritionMatches && dietMatches;
 		})
 	);
 </script>
@@ -113,9 +103,7 @@
 		>
 			<span>Filters</span>
 
-			<span class="arrow" class:rotated={filtersOpen}>
-				⌄
-			</span>
+			<span class="arrow" class:rotated={filtersOpen}> ⌄ </span>
 		</button>
 
 		{#if filtersOpen}
@@ -190,15 +178,9 @@
 
 		<div class="product-grid">
 			{#each filteredProducts as product}
-				<ProductCard
-					{product}
-					selectMode={true}
-					onSelect={() => selectProduct(product.id)}
-				/>
+				<ProductCard {product} selectMode={true} onSelect={() => selectProduct(product.id)} />
 			{:else}
-				<p class="no-results">
-					No products found matching your search and filters.
-				</p>
+				<p class="no-results">No products found matching your search and filters.</p>
 			{/each}
 		</div>
 	</section>

@@ -17,9 +17,7 @@ function addProduct(productId: string) {
 }
 
 function removeProduct(productId: string) {
-	selectedProducts.update((current) =>
-		current.filter((id) => id !== productId)
-	);
+	selectedProducts.update((current) => current.filter((id) => id !== productId));
 }
 
 function clear() {

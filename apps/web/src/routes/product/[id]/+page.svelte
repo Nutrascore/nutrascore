@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
-    import { products } from '$lib/data/products';
-    
+	import { products } from '$lib/data/products';
+
 	let productId = $derived(page.params.id);
 
-	let product = $derived(
-		products.find((product) => product.id === productId)
-	);
+	let product = $derived(products.find((product) => product.id === productId));
 
 	function addToCompare() {
 		if (!product) return;
@@ -45,9 +43,7 @@
 					{/each}
 				</div>
 
-				<button class="compare-button" onclick={addToCompare}>
-					Add to Compare
-				</button>
+				<button class="compare-button" onclick={addToCompare}> Add to Compare </button>
 			</div>
 		</section>
 
@@ -100,9 +96,7 @@
 		<section class="not-found">
 			<h1>Product not found</h1>
 
-			<p>
-				The product you're looking for doesn't exist.
-			</p>
+			<p>The product you're looking for doesn't exist.</p>
 
 			<a href="/discover">Back to Discover</a>
 		</section>

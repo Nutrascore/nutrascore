@@ -63,9 +63,7 @@
 			<input bind:value={query} placeholder="Search for a product..." />
 		</form>
 
-		<button onclick={openBarcodeScanner}>
-			Scan Barcode
-		</button>
+		<button onclick={openBarcodeScanner}> Scan Barcode </button>
 	</div>
 
 	<input
@@ -81,14 +79,12 @@
 		<h2>Why NutraScore?</h2>
 
 		<p>
-			Finding useful information about packaged food shouldn't require
-			deciphering confusing labels.
+			Finding useful information about packaged food shouldn't require deciphering confusing labels.
 		</p>
 
 		<p>
-			NutraScore brings nutrition, ingredients, additives, and other
-			product information together in one place, making it easier to
-			discover and compare the food you buy.
+			NutraScore brings nutrition, ingredients, additives, and other product information together in
+			one place, making it easier to discover and compare the food you buy.
 		</p>
 	</section>
 </main>

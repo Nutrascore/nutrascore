@@ -55,11 +55,7 @@
 		<p>{product.brand}</p>
 
 		{#if selectMode}
-			<button
-				type="button"
-				class="compare-button"
-				onclick={addToComparison}
-			>
+			<button type="button" class="compare-button" onclick={addToComparison}>
 				Add to Comparison
 			</button>
 		{/if}

@@ -50,11 +50,7 @@
 					<p>{firstProduct.brand}</p>
 				</div>
 
-				<button
-					type="button"
-					class="change-product"
-					onclick={() => removeProduct(firstProduct.id)}
-				>
+				<button type="button" class="change-product" onclick={() => removeProduct(firstProduct.id)}>
 					Remove
 				</button>
 			</div>
@@ -167,7 +163,6 @@
 
 			<div class="labels-comparison">
 				<div>
-
 					<div class="labels">
 						{#each firstProduct.labels as label}
 							<span>{label}</span>
@@ -176,7 +171,6 @@
 				</div>
 
 				<div>
-
 					<div class="labels">
 						{#each secondProduct.labels as label}
 							<span>{label}</span>
@@ -372,7 +366,6 @@
 		border: 1px solid #e5e5e5;
 		border-radius: 16px;
 	}
-
 
 	.ingredients-comparison p {
 		line-height: 1.6;
