@@ -2,18 +2,16 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { compareStore } from '$lib/stores/compareStore';
-	import { products } from '$lib/data/products';
+	import { compareProducts, type Product } from '$lib/api';
+	import { formatNutritionValue } from '$lib/utils/formatNutrition';
 
 	let selectedProductIds = $derived($compareStore);
 
-	let selectedProducts = $derived(
-		selectedProductIds
-			.map((id) => products.find((product) => product.id === id))
-			.filter((product) => product !== undefined)
-	);
+	let firstProduct = $state<Product | null>(null);
+	let secondProduct = $state<Product | null>(null);
 
-	let firstProduct = $derived(selectedProducts[0]);
-	let secondProduct = $derived(selectedProducts[1]);
+	let loading = $state(false);
+	let error = $state('');
 
 	function addProduct() {
 		goto(resolve('/discover'));
@@ -22,9 +20,41 @@
 	function removeProduct(productId: string) {
 		compareStore.removeProduct(productId);
 	}
-</script>
 
-```svelte
+	async function loadComparison() {
+		const ids = selectedProductIds.slice(0, 2);
+
+		firstProduct = null;
+		secondProduct = null;
+		error = '';
+
+		if (ids.length < 2) {
+			return;
+		}
+
+		loading = true;
+
+		try {
+			const result = await compareProducts(ids);
+
+			firstProduct = result.products.find((product) => product.id === ids[0]) ?? null;
+
+			secondProduct = result.products.find((product) => product.id === ids[1]) ?? null;
+		} catch (err) {
+			console.error(err);
+
+			error = err instanceof Error ? err.message : 'Unable to compare products.';
+		} finally {
+			loading = false;
+		}
+	}
+
+	$effect(() => {
+		void selectedProductIds;
+
+		loadComparison();
+	});
+</script>
 
 <svelte:head>
 	<title>Compare Products — NutraScore</title>
@@ -40,20 +70,26 @@
 		{#if firstProduct}
 			<div class="comparison-product">
 				<div class="product-image">
-					{#if firstProduct.image}
-						<img src={firstProduct.image} alt={firstProduct.name} />
+					{#if firstProduct.imageUrl}
+						<img src={firstProduct.imageUrl} alt={firstProduct.name} />
 					{:else}
 						<span>No Image</span>
 					{/if}
 				</div>
 
 				<div class="product-info">
-					<span class="category">{firstProduct.category}</span>
+					<span class="category">Product</span>
+
 					<h2>{firstProduct.name}</h2>
-					<p>{firstProduct.brand}</p>
+
+					<p>{firstProduct.brand ?? 'Unknown brand'}</p>
 				</div>
 
-				<button type="button" class="change-product" onclick={() => removeProduct(firstProduct.id)}>
+				<button
+					type="button"
+					class="change-product"
+					onclick={() => removeProduct(firstProduct!.id)}
+				>
 					Remove
 				</button>
 			</div>
@@ -69,23 +105,25 @@
 		{#if secondProduct}
 			<div class="comparison-product">
 				<div class="product-image">
-					{#if secondProduct.image}
-						<img src={secondProduct.image} alt={secondProduct.name} />
+					{#if secondProduct.imageUrl}
+						<img src={secondProduct.imageUrl} alt={secondProduct.name} />
 					{:else}
 						<span>No Image</span>
 					{/if}
 				</div>
 
 				<div class="product-info">
-					<span class="category">{secondProduct.category}</span>
+					<span class="category">Product</span>
+
 					<h2>{secondProduct.name}</h2>
-					<p>{secondProduct.brand}</p>
+
+					<p>{secondProduct.brand ?? 'Unknown brand'}</p>
 				</div>
 
 				<button
 					type="button"
 					class="change-product"
-					onclick={() => removeProduct(secondProduct.id)}
+					onclick={() => removeProduct(secondProduct!.id)}
 				>
 					Remove
 				</button>
@@ -98,7 +136,11 @@
 		{/if}
 	</section>
 
-	{#if firstProduct && secondProduct}
+	{#if loading}
+		<p class="comparison-hint">Loading comparison...</p>
+	{:else if error}
+		<p class="comparison-hint error">{error}</p>
+	{:else if firstProduct && secondProduct}
 		<section class="comparison-section">
 			<h2>Nutrition Comparison</h2>
 
@@ -111,38 +153,38 @@
 
 				<div class="nutrition-row">
 					<span>Calories</span>
-					<span>{firstProduct.nutrition.calories}</span>
-					<span>{secondProduct.nutrition.calories}</span>
+					<span>{formatNutritionValue(firstProduct.nutrition?.kcalPer100g, ' kcal')}</span>
+					<span>{formatNutritionValue(secondProduct.nutrition?.kcalPer100g, ' kcal')}</span>
 				</div>
 
 				<div class="nutrition-row">
 					<span>Protein</span>
-					<span>{firstProduct.nutrition.protein}</span>
-					<span>{secondProduct.nutrition.protein}</span>
+					<span>{formatNutritionValue(firstProduct.nutrition?.proteinG, ' g')}</span>
+					<span>{formatNutritionValue(secondProduct.nutrition?.proteinG, ' g')}</span>
 				</div>
 
 				<div class="nutrition-row">
 					<span>Carbohydrates</span>
-					<span>{firstProduct.nutrition.carbohydrates}</span>
-					<span>{secondProduct.nutrition.carbohydrates}</span>
+					<span>{formatNutritionValue(firstProduct.nutrition?.carbohydratesG, ' g')}</span>
+					<span>{formatNutritionValue(secondProduct.nutrition?.carbohydratesG, ' g')}</span>
 				</div>
 
 				<div class="nutrition-row">
 					<span>Fat</span>
-					<span>{firstProduct.nutrition.fat}</span>
-					<span>{secondProduct.nutrition.fat}</span>
+					<span>{formatNutritionValue(firstProduct.nutrition?.fatG, ' g')}</span>
+					<span>{formatNutritionValue(secondProduct.nutrition?.fatG, ' g')}</span>
 				</div>
 
 				<div class="nutrition-row">
 					<span>Sugar</span>
-					<span>{firstProduct.nutrition.sugar}</span>
-					<span>{secondProduct.nutrition.sugar}</span>
+					<span>{formatNutritionValue(firstProduct.nutrition?.sugarsG, ' g')}</span>
+					<span>{formatNutritionValue(secondProduct.nutrition?.sugarsG, ' g')}</span>
 				</div>
 
 				<div class="nutrition-row">
 					<span>Salt</span>
-					<span>{firstProduct.nutrition.salt}</span>
-					<span>{secondProduct.nutrition.salt}</span>
+					<span>{formatNutritionValue(firstProduct.nutrition?.saltG, ' g')}</span>
+					<span>{formatNutritionValue(secondProduct.nutrition?.saltG, ' g')}</span>
 				</div>
 			</div>
 		</section>
@@ -152,11 +194,11 @@
 
 			<div class="ingredients-comparison">
 				<div>
-					<p>{firstProduct.ingredients}</p>
+					<p>{firstProduct.ingredients ?? 'Ingredients unavailable.'}</p>
 				</div>
 
 				<div>
-					<p>{secondProduct.ingredients}</p>
+					<p>{secondProduct.ingredients ?? 'Ingredients unavailable.'}</p>
 				</div>
 			</div>
 		</section>
@@ -167,17 +209,29 @@
 			<div class="labels-comparison">
 				<div>
 					<div class="labels">
-						{#each firstProduct.labels as label (label)}
-							<span>{label}</span>
-						{/each}
+						{#if firstProduct.nutriScore}
+							<span>
+								Nutri-Score {firstProduct.nutriScore.toUpperCase()}
+							</span>
+						{/if}
+
+						{#if firstProduct.novaGroup}
+							<span>NOVA {firstProduct.novaGroup}</span>
+						{/if}
 					</div>
 				</div>
 
 				<div>
 					<div class="labels">
-						{#each secondProduct.labels as label (label)}
-							<span>{label}</span>
-						{/each}
+						{#if secondProduct.nutriScore}
+							<span>
+								Nutri-Score {secondProduct.nutriScore.toUpperCase()}
+							</span>
+						{/if}
+
+						{#if secondProduct.novaGroup}
+							<span>NOVA {secondProduct.novaGroup}</span>
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -188,7 +242,6 @@
 		</p>
 	{/if}
 </main>
-```
 
 <style>
 	main {
@@ -321,10 +374,19 @@
 		font-size: 12px;
 	}
 
+	.change-product:hover {
+		background: #f5f5f5;
+		border-color: #ccc;
+	}
+
 	.comparison-hint {
 		text-align: center;
 		color: #666;
 		margin-bottom: 50px;
+	}
+
+	.comparison-hint.error {
+		color: #b00020;
 	}
 
 	.comparison-section {
@@ -406,10 +468,5 @@
 		.labels-comparison {
 			grid-template-columns: 1fr;
 		}
-	}
-
-	.change-product:hover {
-		background: #f5f5f5;
-		border-color: #ccc;
 	}
 </style>

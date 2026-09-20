@@ -1,20 +1,55 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { products } from '$lib/data/products';
+	import { getProduct, type Product } from '$lib/api';
+	import { compareStore } from '$lib/stores/compareStore';
+	import { formatNutritionValue } from '$lib/utils/formatNutrition';
+
+	let product = $state<Product | null>(null);
+	let loading = $state(true);
+	let error = $state('');
 
 	let productId = $derived(page.params.id);
+	let isSelectedForCompare = $derived(product ? $compareStore.includes(product.id) : false);
 
-	let product = $derived(products.find((product) => product.id === productId));
+	async function loadProduct() {
+		loading = true;
+		error = '';
+		product = null;
+
+		if (!productId) {
+			error = 'Product not found.';
+			loading = false;
+			return;
+		}
+
+		try {
+			product = await getProduct(productId);
+		} catch (err) {
+			console.error(err);
+
+			error = err instanceof Error ? err.message : 'Unable to load product.';
+		} finally {
+			loading = false;
+		}
+	}
+
+	$effect(() => {
+		void productId;
+
+		loadProduct();
+	});
 
 	function addToCompare() {
 		if (!product) return;
 
-		console.log('Add to compare:', product.name);
+		if (isSelectedForCompare) {
+			compareStore.removeProduct(product.id);
+		} else {
+			compareStore.addProduct(product.id);
+		}
 	}
 </script>
-
-```svelte
 
 <svelte:head>
 	<title>
@@ -23,30 +58,58 @@
 </svelte:head>
 
 <main>
-	{#if product}
+	{#if loading}
+		<section class="status">
+			<p>Loading product...</p>
+		</section>
+	{:else if error}
+		<section class="not-found">
+			<h1>Product not found</h1>
+
+			<p>{error}</p>
+
+			<a href={resolve('/discover')}>Back to Discover</a>
+		</section>
+	{:else if product}
 		<section class="product-header">
 			<div class="product-image">
-				{#if product.image}
-					<img src={product.image} alt={product.name} />
+				{#if product.imageUrl}
+					<img src={product.imageUrl} alt={product.name} />
 				{:else}
 					<span>No Image</span>
 				{/if}
 			</div>
 
 			<div class="product-summary">
-				<span class="category">{product.category}</span>
+				<span class="category">Product</span>
 
 				<h1>{product.name}</h1>
 
-				<p class="brand">{product.brand}</p>
+				<p class="brand">
+					{product.brand ?? 'Unknown brand'}
+				</p>
+
+				{#if product.barcode}
+					<p class="barcode">Barcode: {product.barcode}</p>
+				{/if}
 
 				<div class="labels">
-					{#each product.labels as label (label)}
-						<span>{label}</span>
-					{/each}
+					{#if product.nutriScore}
+						<span>
+							Nutri-Score {product.nutriScore.toUpperCase()}
+						</span>
+					{/if}
+
+					{#if product.novaGroup}
+						<span>
+							NOVA {product.novaGroup}
+						</span>
+					{/if}
 				</div>
 
-				<button class="compare-button" onclick={addToCompare}> Add to Compare </button>
+				<button type="button" class="compare-button" onclick={addToCompare}>
+					{isSelectedForCompare ? 'Remove from Compare' : 'Add to Compare'}
+				</button>
 			</div>
 		</section>
 
@@ -54,35 +117,77 @@
 			<div class="details-section">
 				<h2>Nutrition Information</h2>
 
+				<p class="nutrition-note">Values per 100g</p>
+
 				<div class="nutrition-grid">
 					<div>
 						<span>Calories</span>
-						<strong>{product.nutrition.calories}</strong>
+						<strong>
+							{formatNutritionValue(product.nutrition?.kcalPer100g, ' kcal')}
+						</strong>
 					</div>
 
 					<div>
 						<span>Protein</span>
-						<strong>{product.nutrition.protein}</strong>
+						<strong>
+							{formatNutritionValue(product.nutrition?.proteinG, ' g')}
+						</strong>
 					</div>
 
 					<div>
 						<span>Carbohydrates</span>
-						<strong>{product.nutrition.carbohydrates}</strong>
+						<strong>
+							{formatNutritionValue(product.nutrition?.carbohydratesG, ' g')}
+						</strong>
 					</div>
 
 					<div>
 						<span>Fat</span>
-						<strong>{product.nutrition.fat}</strong>
+						<strong>
+							{formatNutritionValue(product.nutrition?.fatG, ' g')}
+						</strong>
 					</div>
 
 					<div>
 						<span>Sugar</span>
-						<strong>{product.nutrition.sugar}</strong>
+						<strong>
+							{formatNutritionValue(product.nutrition?.sugarsG, ' g')}
+						</strong>
 					</div>
 
 					<div>
 						<span>Salt</span>
-						<strong>{product.nutrition.salt}</strong>
+						<strong>
+							{formatNutritionValue(product.nutrition?.saltG, ' g')}
+						</strong>
+					</div>
+
+					<div>
+						<span>Saturated Fat</span>
+						<strong>
+							{formatNutritionValue(product.nutrition?.saturatedFatG, ' g')}
+						</strong>
+					</div>
+
+					<div>
+						<span>Fibre</span>
+						<strong>
+							{formatNutritionValue(product.nutrition?.fibreG, ' g')}
+						</strong>
+					</div>
+
+					<div>
+						<span>Trans Fat</span>
+						<strong>
+							{formatNutritionValue(product.nutrition?.transFatG, ' g')}
+						</strong>
+					</div>
+
+					<div>
+						<span>Sodium</span>
+						<strong>
+							{formatNutritionValue(product.nutrition?.sodiumMg, ' mg')}
+						</strong>
 					</div>
 				</div>
 			</div>
@@ -91,7 +196,7 @@
 				<h2>Ingredients</h2>
 
 				<p class="ingredients">
-					{product.ingredients}
+					{product.ingredients ?? 'Ingredients information unavailable.'}
 				</p>
 			</div>
 		</section>
@@ -105,7 +210,6 @@
 		</section>
 	{/if}
 </main>
-```
 
 <style>
 	main {
@@ -131,6 +235,8 @@
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
+
+		color: #888;
 	}
 
 	.product-image img {
@@ -161,6 +267,12 @@
 		font-size: 18px;
 		color: #666;
 		margin: 0 0 20px;
+	}
+
+	.barcode {
+		margin: -10px 0 20px;
+		color: #888;
+		font-size: 14px;
 	}
 
 	.labels {
@@ -201,8 +313,14 @@
 
 	.details-section h2 {
 		margin-top: 0;
-		margin-bottom: 25px;
+		margin-bottom: 8px;
 		font-size: 22px;
+	}
+
+	.nutrition-note {
+		margin: 0 0 25px;
+		color: #777;
+		font-size: 14px;
 	}
 
 	.nutrition-grid {
@@ -232,14 +350,38 @@
 		margin: 0;
 	}
 
+	.status,
 	.not-found {
 		text-align: center;
 		margin-top: 100px;
+	}
+
+	.status {
+		color: #666;
 	}
 
 	.not-found a {
 		display: inline-block;
 		margin-top: 20px;
 		color: inherit;
+	}
+
+	@media (max-width: 750px) {
+		main {
+			padding: 0 20px;
+		}
+
+		.product-header {
+			grid-template-columns: 1fr;
+			gap: 30px;
+		}
+
+		.product-image {
+			height: 280px;
+		}
+
+		.details-grid {
+			grid-template-columns: 1fr;
+		}
 	}
 </style>

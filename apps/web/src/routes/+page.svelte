@@ -1,18 +1,11 @@
 <script lang="ts">
-	let query = '';
-	let barcodeInput: HTMLInputElement;
+	import BarcodeScanner from '$lib/components/BarcodeScanner.svelte';
+
+	let query = $state('');
+	let scannerOpen = $state(false);
 
 	function openBarcodeScanner() {
-		barcodeInput.click();
-	}
-
-	function handleBarcodeImage(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
-
-		if (!file) return;
-
-		console.log('Barcode image:', file);
+		scannerOpen = true;
 	}
 
 	function discover() {
@@ -35,7 +28,6 @@
 		A platform for discovering, comparing, and understanding packaged food products in India.
 	</p>
 
-	<!-- Search Area -->
 	<div class="search-area">
 		<form
 			class="search-bar"
@@ -60,20 +52,19 @@
 				</svg>
 			</button>
 
-			<input bind:value={query} placeholder="Search for a product..." />
+			<input
+				bind:value={query}
+				placeholder="Search for a product..."
+				aria-label="Search for a product"
+			/>
 		</form>
 
-		<button onclick={openBarcodeScanner}> Scan Barcode </button>
+		<button type="button" onclick={openBarcodeScanner}> Scan Barcode </button>
 	</div>
 
-	<input
-		bind:this={barcodeInput}
-		type="file"
-		accept="image/*"
-		capture="environment"
-		onchange={handleBarcodeImage}
-		hidden
-	/>
+	{#if scannerOpen}
+		<BarcodeScanner onClose={() => (scannerOpen = false)} />
+	{/if}
 
 	<section class="why-nutriscore">
 		<h2>Why NutraScore?</h2>
@@ -114,7 +105,6 @@
 		gap: 12px;
 		width: 600px;
 		padding: 14px 18px;
-
 		background: #f5f5f5;
 		border: 1px solid #e5e5e5;
 		border-radius: 12px;

@@ -18,9 +18,11 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "dotenv": "^17.4.2",
+    "@duckdb/node-api": "1.5.5-r.4",
+    "@fastify/cors": "^11.3.0",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.12.1",
+    "parquetjs-lite": "^0.8.7",
     "pg": "^8.23.0",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
@@ -32,6 +34,7 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/pg": "^8.23.1",
+    "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "vitest": "^4.1.11"
   }
