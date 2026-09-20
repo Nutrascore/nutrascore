@@ -2,8 +2,10 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import BarcodeScanner from '$lib/components/BarcodeScanner.svelte';
 
 	let query = $state('');
+	let scannerOpen = $state(false);
 
 	function search() {
 		const trimmedQuery = query.trim();
@@ -15,8 +17,6 @@
 		}
 	}
 </script>
-
-```svelte
 
 <nav>
 	<a href={resolve('/')} class="logo">
@@ -50,7 +50,9 @@
 
 				<input bind:value={query} placeholder="Search for a product..." />
 			</form>
-			<button class="scan-button">Scan Barcode</button>
+			<button class="scan-button" type="button" onclick={() => (scannerOpen = true)}>
+				Scan Barcode
+			</button>
 		</div>
 	{/if}
 
@@ -60,7 +62,10 @@
 		<a href={resolve('/discover')}>Discover</a>
 	</div>
 </nav>
-```
+
+{#if scannerOpen}
+	<BarcodeScanner onClose={() => (scannerOpen = false)} />
+{/if}
 
 <style>
 	nav {

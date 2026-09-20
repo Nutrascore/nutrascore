@@ -2,19 +2,67 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import ProductCard from '$lib/components/ProductCard.svelte';
-	import { products } from '$lib/data/products';
 	import { compareStore } from '$lib/stores/compareStore';
+	import { searchProducts } from '$lib/api';
+	import { formatNutritionValue } from '$lib/utils/formatNutrition';
 
-	function selectProduct(productId: string) {
-		compareStore.addProduct(productId);
+	interface ApiProduct {
+		id: string;
+		name: string;
+		brand: string | null;
+		barcode: string | null;
+		nutriScore: string | null;
+		novaGroup: number | null;
+		imageUrl: string | null;
+		nutrition: {
+			kcalPer100g: string | null;
+			fatG: string | null;
+			saturatedFatG: string | null;
+			transFatG: string | null;
+			carbohydratesG: string | null;
+			sugarsG: string | null;
+			fibreG: string | null;
+			proteinG: string | null;
+			sodiumMg: string | null;
+			saltG: string | null;
+		} | null;
+	}
+
+	interface FrontendProduct {
+		id: string;
+		name: string;
+		brand: string;
+		barcode: string | null;
+		category: string;
+		image: string;
+		ingredients: string;
+		labels: string[];
+		nutrition: {
+			calories: string;
+			protein: string;
+			carbohydrates: string;
+			fat: string;
+			sugar: string;
+			salt: string;
+		};
 	}
 
 	let filtersOpen = $state(false);
+	let loading = $state(false);
+	let error = $state('');
+	let apiProducts = $state<FrontendProduct[]>([]);
 
 	const filters = {
 		category: ['Snacks', 'Beverages', 'Instant Noodles', 'Biscuits'],
 		nutrition: ['High Protein', 'Low Sugar', 'Low Calories'],
 		diet: ['Vegetarian', 'Vegan']
+	};
+
+	const categoryNames: Record<string, string> = {
+		Snacks: 'snacks',
+		Beverages: 'beverages',
+		'Instant Noodles': 'instant-noodles',
+		Biscuits: 'biscuits'
 	};
 
 	let selectedFilters = $state({
@@ -23,74 +71,86 @@
 		diet: [] as string[]
 	});
 
+	let searchQuery = $derived(page.url.searchParams.get('q') ?? '');
+
 	function toggleFilter(type: 'category' | 'nutrition' | 'diet', value: string) {
 		const selected = selectedFilters[type];
 
 		if (selected.includes(value)) {
 			selectedFilters[type] = selected.filter((item) => item !== value);
 		} else {
-			selectedFilters[type].push(value);
+			selectedFilters[type] = [...selected, value];
 		}
 	}
 
-	let searchQuery = $derived(page.url.searchParams.get('q') ?? '');
+	function convertProduct(product: ApiProduct): FrontendProduct {
+		return {
+			id: product.id,
+			name: product.name,
+			brand: product.brand ?? 'Unknown brand',
+			barcode: product.barcode,
 
-	let filteredProducts = $derived(
-		products.filter((product) => {
-			const normalizedQuery = searchQuery.trim().toLowerCase();
+			// Category information is not currently returned by
+			// the search endpoint, so do not pretend that every
+			// product belongs to "Other".
+			category: '',
 
-			const searchMatches =
-				normalizedQuery === '' ||
-				product.name.toLowerCase().includes(normalizedQuery) ||
-				product.brand.toLowerCase().includes(normalizedQuery) ||
-				product.category.toLowerCase().includes(normalizedQuery);
+			image: product.imageUrl ?? '',
 
-			const categoryMatches =
-				selectedFilters.category.length === 0 ||
-				selectedFilters.category.includes(product.category);
+			ingredients: 'Ingredients information available on product page.',
 
-			const protein = parseFloat(product.nutrition.protein);
-			const sugar = parseFloat(product.nutrition.sugar);
-			const calories = parseFloat(product.nutrition.calories);
+			labels: product.nutriScore ? [`Nutri-Score ${product.nutriScore.toUpperCase()}`] : [],
 
-			const nutritionMatches =
-				selectedFilters.nutrition.length === 0 ||
-				selectedFilters.nutrition.every((filter) => {
-					if (filter === 'High Protein') {
-						return protein >= 10;
-					}
+			nutrition: {
+				calories: formatNutritionValue(product.nutrition?.kcalPer100g),
+				protein: formatNutritionValue(product.nutrition?.proteinG),
+				carbohydrates: formatNutritionValue(product.nutrition?.carbohydratesG),
+				fat: formatNutritionValue(product.nutrition?.fatG),
+				sugar: formatNutritionValue(product.nutrition?.sugarsG),
+				salt: formatNutritionValue(product.nutrition?.saltG)
+			}
+		};
+	}
 
-					if (filter === 'Low Sugar') {
-						return sugar <= 5;
-					}
+	async function loadProducts() {
+		loading = true;
+		error = '';
 
-					if (filter === 'Low Calories') {
-						return calories <= 100;
-					}
+		try {
+			const query = searchQuery.trim();
 
-					return true;
-				});
+			const selectedCategories = selectedFilters.category.map(
+				(category) => categoryNames[category]
+			);
 
-			const dietMatches =
-				selectedFilters.diet.length === 0 ||
-				selectedFilters.diet.every((filter) => {
-					if (filter === 'Vegetarian') {
-						return product.labels.includes('Vegetarian');
-					}
+			const searchResult = await searchProducts(query, 20, 0, {
+				categories: selectedCategories,
+				nutrition: selectedFilters.nutrition
+			});
 
-					if (filter === 'Vegan') {
-						return product.labels.includes('Vegan');
-					}
+			apiProducts = searchResult.products.map(convertProduct);
+		} catch (err) {
+			console.error(err);
 
-					return true;
-				});
+			error = err instanceof Error ? err.message : 'Unable to load products.';
 
-			return searchMatches && categoryMatches && nutritionMatches && dietMatches;
-		})
-	);
+			apiProducts = [];
+		} finally {
+			loading = false;
+		}
+	}
+
+	$effect(() => {
+		void searchQuery;
+		void selectedFilters.category;
+		void selectedFilters.nutrition;
+		void selectedFilters.diet;
+
+		loadProducts();
+	});
+
+	let filteredProducts = $derived(apiProducts);
 </script>
-
-```svelte
 
 <svelte:head>
 	<title>Discover Products — NutraScore</title>
@@ -106,7 +166,7 @@
 		>
 			<span>Filters</span>
 
-			<span class="arrow" class:rotated={filtersOpen}> ⌄ </span>
+			<span class="arrow" class:rotated={filtersOpen}>⌄</span>
 		</button>
 
 		{#if filtersOpen}
@@ -147,15 +207,11 @@
 
 				<div class="filter-group">
 					<span class="filter-label">Diet</span>
+					<small class="filter-note">Dietary classification is not available yet.</small>
 
 					<div class="filter-options">
 						{#each filters.diet as diet (diet)}
-							<button
-								type="button"
-								class="filter-option"
-								class:selected={selectedFilters.diet.includes(diet)}
-								onclick={() => toggleFilter('diet', diet)}
-							>
+							<button type="button" class="filter-option" disabled>
 								{diet}
 							</button>
 						{/each}
@@ -169,7 +225,14 @@
 		<div class="section-header">
 			<div>
 				<h2>Popular Products</h2>
-				<p>Explore some commonly searched packaged food products.</p>
+
+				<p>
+					{#if searchQuery}
+						Search results for "{searchQuery}"
+					{:else}
+						Explore packaged food products.
+					{/if}
+				</p>
 			</div>
 
 			{#if $compareStore.length > 0}
@@ -179,16 +242,21 @@
 			{/if}
 		</div>
 
-		<div class="product-grid">
-			{#each filteredProducts as product (product.id)}
-				<ProductCard {product} selectMode={true} onSelect={() => selectProduct(product.id)} />
-			{:else}
-				<p class="no-results">No products found matching your search and filters.</p>
-			{/each}
-		</div>
+		{#if loading}
+			<p class="status-message">Loading products...</p>
+		{:else if error}
+			<p class="status-message error">{error}</p>
+		{:else}
+			<div class="product-grid">
+				{#each filteredProducts as product (product.id)}
+					<ProductCard {product} selectMode={true} />
+				{:else}
+					<p class="no-results">No products found matching your search and filters.</p>
+				{/each}
+			</div>
+		{/if}
 	</section>
 </main>
-```
 
 <style>
 	main {
@@ -311,9 +379,14 @@
 		gap: 20px;
 	}
 
-	.no-results {
+	.no-results,
+	.status-message {
 		grid-column: 1 / -1;
 		color: #666;
+	}
+
+	.status-message.error {
+		color: #b00020;
 	}
 
 	@media (max-width: 750px) {

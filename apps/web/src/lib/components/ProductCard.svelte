@@ -1,19 +1,22 @@
 <script lang="ts">
+	import { compareStore } from '$lib/stores/compareStore';
+
 	let {
 		product,
-		selectMode = false,
-		onSelect
+		selectMode = false
 	}: {
 		product: {
 			id: string;
 			name: string;
 			brand: string;
+			barcode: string | null;
 			category: string;
 			image: string;
 		};
 		selectMode?: boolean;
-		onSelect?: () => void;
 	} = $props();
+
+	let isSelected = $derived($compareStore.includes(product.id));
 
 	function openProduct() {
 		window.location.href = `/product/${product.id}`;
@@ -22,8 +25,10 @@
 	function addToComparison(event: MouseEvent) {
 		event.stopPropagation();
 
-		if (onSelect) {
-			onSelect();
+		if (isSelected) {
+			compareStore.removeProduct(product.id);
+		} else {
+			compareStore.addProduct(product.id);
 		}
 	}
 </script>
@@ -54,9 +59,13 @@
 
 		<p>{product.brand}</p>
 
+		{#if product.barcode}
+			<p class="barcode">Barcode: {product.barcode}</p>
+		{/if}
+
 		{#if selectMode}
 			<button type="button" class="compare-button" onclick={addToComparison}>
-				Add to Comparison
+				{isSelected ? 'Remove from Comparison' : 'Add to Comparison'}
 			</button>
 		{/if}
 	</div>
@@ -110,6 +119,12 @@
 		margin: 0;
 		color: #666;
 		font-size: 14px;
+	}
+
+	.barcode {
+		margin-top: 6px !important;
+		font-size: 12px !important;
+		color: #888 !important;
 	}
 
 	.compare-button {
