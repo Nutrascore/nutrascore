@@ -50,6 +50,7 @@ jobs:
         run: pnpm db:migrate
         env:
           DATABASE_URL: postgresql://nutrascore:nutrascore_dev@localhost:5432/nutrascore
+          DEBUG: drizzle-kit:*
 
       - name: Check
         run: pnpm check
