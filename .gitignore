@@ -8,6 +8,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+apps/api/uploads/*
 .DS_Store
 data/
 __pycache__/

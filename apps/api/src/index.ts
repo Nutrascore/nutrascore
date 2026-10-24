@@ -1,6 +1,10 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'node:path';
+import { mkdir } from 'node:fs/promises';
 
 import { pool } from './db/pool.js';
 
@@ -9,17 +13,50 @@ import searchRoutes from './routes/search.js';
 import barcodeRoutes from './routes/barcode.js';
 import compareRoutes from './routes/compare.js';
 import categoryRoutes from './routes/categories.js';
+import authRoutes from './routes/auth.js';
+import accountRoutes from './routes/account.js';
+import moderatorRoutes from './routes/moderator.js';
 
 const app = Fastify({
 	logger: true,
 });
+
+const uploadDirectory = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'));
 
 // ============================================================
 // CORS
 // ============================================================
 
 await app.register(cors, {
-	origin: 'http://localhost:5173',
+	origin: (origin, callback) => {
+		const configuredOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
+		const allowedOrigins = new Set([
+			configuredOrigin,
+			'http://localhost:5173',
+			'http://127.0.0.1:5173',
+		]);
+		if (!origin || allowedOrigins.has(origin)) {
+			callback(null, true);
+			return;
+		}
+		callback(new Error('Origin is not allowed.'), false);
+	},
+	credentials: true,
+	methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
+});
+
+await app.register(multipart, {
+	limits: {
+		fileSize: 5 * 1024 * 1024,
+		files: 1,
+	},
+});
+
+await mkdir(uploadDirectory, { recursive: true });
+await app.register(fastifyStatic, {
+	root: uploadDirectory,
+	prefix: '/uploads/',
 });
 
 // ============================================================
@@ -73,6 +110,18 @@ app.register(compareRoutes, {
 
 app.register(categoryRoutes, {
 	prefix: '/api/categories',
+});
+
+app.register(authRoutes, {
+	prefix: '/api/auth',
+});
+
+app.register(accountRoutes, {
+	prefix: '/api/account',
+});
+
+app.register(moderatorRoutes, {
+	prefix: '/api/moderator',
 });
 
 // ============================================================

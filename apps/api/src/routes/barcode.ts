@@ -23,6 +23,18 @@ const barcodeRoutes: FastifyPluginAsync = async (app) => {
         p.nutri_score,
         p.nova_group,
         image.image_url,
+        COALESCE((
+          SELECT array_agg(c.name ORDER BY c.name)
+          FROM product_categories pc
+          INNER JOIN categories c ON c.id = pc.category_id
+          WHERE pc.product_id = p.id
+        ), ARRAY[]::text[]) AS categories,
+        COALESCE((
+          SELECT array_agg(a.name ORDER BY a.name)
+          FROM product_allergens pa
+          INNER JOIN allergens a ON a.id = pa.allergen_id
+          WHERE pa.product_id = p.id
+        ), ARRAY[]::text[]) AS allergens,
 
         n.kcal_per_100g,
         n.fat_g,
@@ -71,6 +83,8 @@ const barcodeRoutes: FastifyPluginAsync = async (app) => {
       barcode: product.barcode,
       ingredients: product.ingredients,
       imageUrl: product.image_url,
+      categories: product.categories,
+      allergens: product.allergens,
       nutriScore: product.nutri_score,
       novaGroup: product.nova_group,
 
@@ -91,4 +105,3 @@ const barcodeRoutes: FastifyPluginAsync = async (app) => {
 };
 
 export default barcodeRoutes;
-

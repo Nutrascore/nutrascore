@@ -49,6 +49,8 @@ export const nutrition = pgTable("Nutrition", {
 	proteinG: numeric("protein_g"),
 	sodiumMg: numeric("sodium_mg"),
 	saltG: numeric("salt_g"),
+	servingSize: numeric("serving_size"),
+	servingUnit: varchar("serving_unit", { length: 20 }),
 }, (table) => [
 	unique("Nutrition_product_id_key").on(table.productId),
 ]);

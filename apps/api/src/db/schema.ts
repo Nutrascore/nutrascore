@@ -32,6 +32,40 @@ export const productImages = pgTable("ProductImages", {
   isPrimary: boolean("is_primary").notNull(),
 });
 
+export const users = pgTable("Users", {
+  id: uuid("id").primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("user"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const userSessions = pgTable("user_sessions", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id").notNull(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
+export const productFavourites = pgTable(
+  "product_favourites",
+  {
+    userId: uuid("user_id").notNull(),
+    productId: uuid("product_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.productId] })],
+);
+
+export const productImageReviews = pgTable("product_image_reviews", {
+  productId: uuid("product_id").primaryKey(),
+  reviewStatus: varchar("review_status", { length: 20 }).notNull().default("needs_review"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
 // Categories
 export const categories = pgTable("categories", {
   id: uuid("id").primaryKey(),
@@ -67,6 +101,8 @@ export const nutrition = pgTable("Nutrition", {
   proteinG: numeric("protein_g"),
   sodiumMg: numeric("sodium_mg"),
   saltG: numeric("salt_g"),
+  servingSize: numeric("serving_size"),
+  servingUnit: varchar("serving_unit", { length: 20 }),
 });
 
 // Allergens

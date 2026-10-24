@@ -1,12 +1,10 @@
 <script lang="ts">
-	import BarcodeScanner from '$lib/components/BarcodeScanner.svelte';
+	
 
 	let query = $state('');
-	let scannerOpen = $state(false);
+	
 
-	function openBarcodeScanner() {
-		scannerOpen = true;
-	}
+	
 
 	function discover() {
 		const trimmedQuery = query.trim();
@@ -59,13 +57,10 @@
 			/>
 		</form>
 
-		<button type="button" onclick={openBarcodeScanner}> Scan Barcode </button>
+		
 	</div>
 
-	{#if scannerOpen}
-		<BarcodeScanner onClose={() => (scannerOpen = false)} />
-	{/if}
-
+	
 	<section class="why-nutriscore">
 		<h2>Why NutraScore?</h2>
 
@@ -74,7 +69,7 @@
 		</p>
 
 		<p>
-			NutraScore brings nutrition, ingredients, additives, and other product information together in
+			NutraScore brings nutrition, ingredients, and other product information together in
 			one place, making it easier to discover and compare the food you buy.
 		</p>
 	</section>
@@ -97,13 +92,15 @@
 		display: flex;
 		justify-content: center;
 		gap: 12px;
+		flex-wrap: wrap;
 	}
 
 	.search-bar {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		width: 600px;
+		width: min(600px, 100%);
+		box-sizing: border-box;
 		padding: 14px 18px;
 		background: #f5f5f5;
 		border: 1px solid #e5e5e5;
@@ -154,5 +151,26 @@
 		max-width: 700px;
 		margin-bottom: 12px;
 		line-height: 1.6;
+	}
+
+	@media (max-width: 560px) {
+		main {
+			margin: 56px auto;
+			padding: 0 16px;
+		}
+
+		.subtitle {
+			font-size: 17px;
+		}
+
+		.search-area {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.search-bar,
+		.search-area > button {
+			width: 100%;
+		}
 	}
 </style>

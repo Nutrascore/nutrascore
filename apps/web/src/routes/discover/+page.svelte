@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import ProductCard from '$lib/components/ProductCard.svelte';
 	import { compareStore } from '$lib/stores/compareStore';
-	import { searchProducts } from '$lib/api';
+	import { getCategories, searchProducts } from '$lib/api';
 	import { formatNutritionValue } from '$lib/utils/formatNutrition';
+	import { getVisiblePages } from '$lib/pagination';
 
 	interface ApiProduct {
 		id: string;
@@ -14,6 +16,7 @@
 		nutriScore: string | null;
 		novaGroup: number | null;
 		imageUrl: string | null;
+		
 		nutrition: {
 			kcalPer100g: string | null;
 			fatG: string | null;
@@ -33,10 +36,8 @@
 		name: string;
 		brand: string;
 		barcode: string | null;
-		category: string;
 		image: string;
 		ingredients: string;
-		labels: string[];
 		nutrition: {
 			calories: string;
 			protein: string;
@@ -45,35 +46,33 @@
 			sugar: string;
 			salt: string;
 		};
+		
 	}
 
 	let filtersOpen = $state(false);
 	let loading = $state(false);
 	let error = $state('');
 	let apiProducts = $state<FrontendProduct[]>([]);
+	let currentPage = $state(Math.max(Number(page.url.searchParams.get('page')) || 1, 1));
+	let totalPages = $state(1);
+	let totalProducts = $state(0);
+	let categoryOptions = $state<string[]>([]);
+	const pageSize = 24;
+	let lastFilterKey = '';
+	let requestSequence = 0;
 
 	const filters = {
-		category: ['Snacks', 'Beverages', 'Instant Noodles', 'Biscuits'],
-		nutrition: ['High Protein', 'Low Sugar', 'Low Calories'],
-		diet: ['Vegetarian', 'Vegan']
-	};
-
-	const categoryNames: Record<string, string> = {
-		Snacks: 'snacks',
-		Beverages: 'beverages',
-		'Instant Noodles': 'instant-noodles',
-		Biscuits: 'biscuits'
+		nutrition: ['High Protein', 'Low Sugar', 'Low Calories']
 	};
 
 	let selectedFilters = $state({
 		category: [] as string[],
-		nutrition: [] as string[],
-		diet: [] as string[]
+		nutrition: [] as string[]
 	});
 
 	let searchQuery = $derived(page.url.searchParams.get('q') ?? '');
 
-	function toggleFilter(type: 'category' | 'nutrition' | 'diet', value: string) {
+	function toggleFilter(type: 'category' | 'nutrition', value: string) {
 		const selected = selectedFilters[type];
 
 		if (selected.includes(value)) {
@@ -90,16 +89,10 @@
 			brand: product.brand ?? 'Unknown brand',
 			barcode: product.barcode,
 
-			// Category information is not currently returned by
-			// the search endpoint, so do not pretend that every
-			// product belongs to "Other".
-			category: '',
-
 			image: product.imageUrl ?? '',
+			
 
-			ingredients: 'Ingredients information available on product page.',
-
-			labels: product.nutriScore ? [`Nutri-Score ${product.nutriScore.toUpperCase()}`] : [],
+			ingredients: '',
 
 			nutrition: {
 				calories: formatNutritionValue(product.nutrition?.kcalPer100g),
@@ -112,42 +105,86 @@
 		};
 	}
 
-	async function loadProducts() {
+	async function loadProducts(
+		query: string,
+		categories: string[],
+		nutrition: string[],
+		pageNumber: number
+	) {
+		const requestId = ++requestSequence;
 		loading = true;
 		error = '';
 
 		try {
-			const query = searchQuery.trim();
-
-			const selectedCategories = selectedFilters.category.map(
-				(category) => categoryNames[category]
-			);
-
-			const searchResult = await searchProducts(query, 20, 0, {
-				categories: selectedCategories,
-				nutrition: selectedFilters.nutrition
+			const searchResult = await searchProducts(query, pageNumber, pageSize, {
+				categories,
+				nutrition
 			});
 
+			if (requestId !== requestSequence) return;
 			apiProducts = searchResult.products.map(convertProduct);
+			totalPages = searchResult.totalPages;
+			totalProducts = searchResult.total;
+			if (pageNumber > searchResult.totalPages && searchResult.totalPages > 0) {
+				currentPage = searchResult.totalPages;
+			}
 		} catch (err) {
+			if (requestId !== requestSequence) return;
 			console.error(err);
 
 			error = err instanceof Error ? err.message : 'Unable to load products.';
 
 			apiProducts = [];
 		} finally {
-			loading = false;
+			if (requestId === requestSequence) loading = false;
 		}
 	}
 
 	$effect(() => {
-		void searchQuery;
-		void selectedFilters.category;
-		void selectedFilters.nutrition;
-		void selectedFilters.diet;
+		const query = searchQuery.trim();
+		const categories = selectedFilters.category.join(',');
+		const nutrition = selectedFilters.nutrition.join(',');
+		const filterKey = `${query}\0${categories}\0${nutrition}`;
 
-		loadProducts();
+		if (filterKey !== lastFilterKey) {
+			lastFilterKey = filterKey;
+			if (currentPage !== 1) {
+				currentPage = 1;
+				return;
+			}
+		}
+
+		void loadProducts(query, selectedFilters.category, selectedFilters.nutrition, currentPage);
 	});
+
+	$effect(() => {
+		getCategories()
+			.then((result) => {
+				categoryOptions = result.categories.map((category) => category.name);
+			})
+			.catch((err) => {
+				console.error(err);
+				error = err instanceof Error ? err.message : 'Unable to load categories.';
+			});
+	});
+
+	function goToPage(page: number) {
+		if (page >= 1 && page <= totalPages && page !== currentPage) {
+			currentPage = page;
+			const currentParams = new URL(window.location.href).searchParams;
+			const params = [...currentParams.entries()]
+				.filter(([key]) => key !== 'page')
+				.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+			if (page !== 1) params.push(`page=${page}`);
+			const query = params.length > 0 ? `?${params.join('&')}` : '';
+			const target = query ? (`/discover${query}` as `/discover?${string}`) : '/discover';
+			void goto(resolve(target as '/discover' | `/discover?${string}`), {
+				replaceState: true,
+				keepFocus: true,
+				noScroll: true
+			});
+		}
+	}
 
 	let filteredProducts = $derived(apiProducts);
 </script>
@@ -175,7 +212,7 @@
 					<span class="filter-label">Category</span>
 
 					<div class="filter-options">
-						{#each filters.category as category (category)}
+						{#each categoryOptions as category (category)}
 							<button
 								type="button"
 								class="filter-option"
@@ -200,19 +237,6 @@
 								onclick={() => toggleFilter('nutrition', nutrition)}
 							>
 								{nutrition}
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<div class="filter-group">
-					<span class="filter-label">Diet</span>
-					<small class="filter-note">Dietary classification is not available yet.</small>
-
-					<div class="filter-options">
-						{#each filters.diet as diet (diet)}
-							<button type="button" class="filter-option" disabled>
-								{diet}
 							</button>
 						{/each}
 					</div>
@@ -254,6 +278,45 @@
 					<p class="no-results">No products found matching your search and filters.</p>
 				{/each}
 			</div>
+
+			{#if totalPages > 1}
+				<nav class="pagination" aria-label="Product results pages">
+					<button
+						type="button"
+						onclick={() => goToPage(currentPage - 1)}
+						disabled={currentPage === 1}
+					>
+						Previous
+					</button>
+					{#if currentPage > 3}
+						<span class="pagination-ellipsis" aria-hidden="true">...</span>
+					{/if}
+					{#each getVisiblePages(currentPage, totalPages) as pageNumber (pageNumber)}
+						<button
+							type="button"
+							class:current={pageNumber === currentPage}
+							aria-current={pageNumber === currentPage ? 'page' : undefined}
+							aria-label={`Go to page ${pageNumber}`}
+							onclick={() => goToPage(pageNumber)}
+						>
+							{pageNumber}
+						</button>
+					{/each}
+					{#if currentPage < totalPages - 2}
+						<span class="pagination-ellipsis" aria-hidden="true">...</span>
+					{/if}
+					<button
+						type="button"
+						onclick={() => goToPage(currentPage + 1)}
+						disabled={currentPage === totalPages}
+					>
+						Next
+					</button>
+				</nav>
+				<p class="pagination-summary">
+					Showing page {currentPage} of {totalPages} ({totalProducts} products)
+				</p>
+			{/if}
 		{/if}
 	</section>
 </main>
@@ -383,6 +446,56 @@
 	.status-message {
 		grid-column: 1 / -1;
 		color: #666;
+	}
+
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 28px;
+	}
+
+	.pagination button {
+		min-width: 40px;
+		min-height: 40px;
+		padding: 8px 12px;
+		border: 1px solid #d8ded9;
+		border-radius: 8px;
+		background: #fff;
+		color: #254332;
+		cursor: pointer;
+	}
+
+	.pagination button:hover:not(:disabled),
+	.pagination button:focus-visible {
+		border-color: #27764f;
+		outline: 3px solid rgb(39 118 79 / 25%);
+		outline-offset: 2px;
+	}
+
+	.pagination button.current {
+		border-color: #27764f;
+		background: #27764f;
+		color: #fff;
+		font-weight: 700;
+	}
+
+	.pagination button:disabled {
+		cursor: not-allowed;
+		opacity: 0.45;
+	}
+
+	.pagination-ellipsis {
+		padding: 8px 2px;
+		color: #657168;
+	}
+
+	.pagination-summary {
+		margin: 12px 0 0;
+		color: #666;
+		text-align: center;
 	}
 
 	.status-message.error {

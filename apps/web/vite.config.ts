@@ -4,6 +4,7 @@ import adapter from '@sveltejs/adapter-auto';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
+	envDir: '../../',
 	plugins: [
 		sveltekit({
 			compilerOptions: {

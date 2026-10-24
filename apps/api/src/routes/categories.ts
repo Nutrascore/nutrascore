@@ -31,6 +31,7 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         c.id,
         c.name,
         c.description
+      HAVING COUNT(pc.product_id) > 0
       ORDER BY c.name ASC
       `,
     );
@@ -98,7 +99,8 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         n.protein_g,
         n.sodium_mg,
         n.salt_g,
-        image.image_url
+        image.image_url,
+        category.name AS category_name
       FROM "Products" p
       INNER JOIN product_categories pc
         ON pc.product_id = p.id
@@ -111,8 +113,16 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         ORDER BY is_primary DESC, id
         LIMIT 1
       ) image ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT c.name
+        FROM product_categories linked_pc
+        INNER JOIN categories c ON c.id = linked_pc.category_id
+        WHERE linked_pc.product_id = p.id
+        ORDER BY c.name ASC
+        LIMIT 1
+      ) category ON TRUE
       WHERE pc.category_id = $1
-      ORDER BY p.name ASC
+      ORDER BY p.name ASC, p.id ASC
       LIMIT $2
       OFFSET $3
       `,
@@ -141,6 +151,7 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         brand: product.brand,
         barcode: product.barcode,
         imageUrl: product.image_url,
+        category: product.category_name,
         nutriScore: product.nutri_score,
         novaGroup: product.nova_group,
         nutrition: {

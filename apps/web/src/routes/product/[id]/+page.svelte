@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { getProduct, type Product } from '$lib/api';
+	import { getCurrentUser, getProduct, type Product, type AuthUser } from '$lib/api';
 	import { compareStore } from '$lib/stores/compareStore';
 	import { formatNutritionValue } from '$lib/utils/formatNutrition';
 
 	let product = $state<Product | null>(null);
 	let loading = $state(true);
 	let error = $state('');
+	let user = $state<AuthUser | null>(null);
+	let actionError = $state('');
 
 	let productId = $derived(page.params.id);
 	let isSelectedForCompare = $derived(product ? $compareStore.includes(product.id) : false);
@@ -38,7 +41,12 @@
 		void productId;
 
 		loadProduct();
+		getCurrentUser()
+			.then((value) => (user = value))
+			.catch(() => (user = null));
 	});
+
+	
 
 	function addToCompare() {
 		if (!product) return;
@@ -81,7 +89,7 @@
 			</div>
 
 			<div class="product-summary">
-				<span class="category">Product</span>
+				<span class="category">{product.categories[0] ?? 'Product'}</span>
 
 				<h1>{product.name}</h1>
 
@@ -110,6 +118,8 @@
 				<button type="button" class="compare-button" onclick={addToCompare}>
 					{isSelectedForCompare ? 'Remove from Compare' : 'Add to Compare'}
 				</button>
+				
+				{#if actionError}<p class="action-error">{actionError}</p>{/if}
 			</div>
 		</section>
 
@@ -118,6 +128,12 @@
 				<h2>Nutrition Information</h2>
 
 				<p class="nutrition-note">Values per 100g</p>
+				{#if product.nutrition?.servingSize && product.nutrition.servingUnit}
+					<p class="nutrition-note">
+						Serving size: {product.nutrition.servingSize}
+						{product.nutrition.servingUnit}
+					</p>
+				{/if}
 
 				<div class="nutrition-grid">
 					<div>
@@ -199,6 +215,13 @@
 					{product.ingredients ?? 'Ingredients information unavailable.'}
 				</p>
 			</div>
+
+			{#if product.allergens.length > 0}
+				<div class="details-section">
+					<h2>Allergens</h2>
+					<p class="ingredients">{product.allergens.join(', ')}</p>
+				</div>
+			{/if}
 		</section>
 	{:else}
 		<section class="not-found">
@@ -215,12 +238,13 @@
 	main {
 		max-width: 1100px;
 		margin: 60px auto;
-		padding: 0 40px;
+		padding: 0 24px;
+		overflow-wrap: anywhere;
 	}
 
 	.product-header {
 		display: grid;
-		grid-template-columns: 350px 1fr;
+		grid-template-columns: minmax(0, 350px) minmax(0, 1fr);
 		gap: 50px;
 		margin-bottom: 60px;
 	}
@@ -299,6 +323,13 @@
 		cursor: pointer;
 	}
 
+	
+
+	.action-error {
+		color: #a32626;
+		font-size: 14px;
+	}
+
 	.details-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
@@ -306,6 +337,7 @@
 	}
 
 	.details-section {
+		min-width: 0;
 		border: 1px solid #e5e5e5;
 		border-radius: 16px;
 		padding: 25px;
