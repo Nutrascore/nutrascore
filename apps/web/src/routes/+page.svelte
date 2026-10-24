@@ -1,10 +1,5 @@
 <script lang="ts">
-	
-
 	let query = $state('');
-	
-
-	
 
 	function discover() {
 		const trimmedQuery = query.trim();
@@ -56,11 +51,8 @@
 				aria-label="Search for a product"
 			/>
 		</form>
-
-		
 	</div>
 
-	
 	<section class="why-nutriscore">
 		<h2>Why NutraScore?</h2>
 
@@ -69,8 +61,8 @@
 		</p>
 
 		<p>
-			NutraScore brings nutrition, ingredients, and other product information together in
-			one place, making it easier to discover and compare the food you buy.
+			NutraScore brings nutrition, ingredients, and other product information together in one place,
+			making it easier to discover and compare the food you buy.
 		</p>
 	</section>
 </main>

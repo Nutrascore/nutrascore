@@ -35,8 +35,7 @@
 			<strong>{user.name}</strong><span>{user.email}</span><span>Role: {user.role}</span>
 		</div>
 		<div class="actions">
-			{#if user.role === 'moderator'}<a
-					href={resolve('/moderator')}>Moderator dashboard</a
+			{#if user.role === 'moderator'}<a href={resolve('/moderator')}>Moderator dashboard</a
 				>{/if}<button onclick={() => void signOut()}>Sign out</button>
 		</div>
 	{/if}

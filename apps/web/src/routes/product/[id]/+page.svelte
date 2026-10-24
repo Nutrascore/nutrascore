@@ -46,8 +46,6 @@
 			.catch(() => (user = null));
 	});
 
-	
-
 	function addToCompare() {
 		if (!product) return;
 
@@ -118,7 +116,7 @@
 				<button type="button" class="compare-button" onclick={addToCompare}>
 					{isSelectedForCompare ? 'Remove from Compare' : 'Add to Compare'}
 				</button>
-				
+
 				{#if actionError}<p class="action-error">{actionError}</p>{/if}
 			</div>
 		</section>
@@ -322,8 +320,6 @@
 		font-size: 15px;
 		cursor: pointer;
 	}
-
-	
 
 	.action-error {
 		color: #a32626;

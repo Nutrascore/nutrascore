@@ -16,7 +16,7 @@
 		nutriScore: string | null;
 		novaGroup: number | null;
 		imageUrl: string | null;
-		
+
 		nutrition: {
 			kcalPer100g: string | null;
 			fatG: string | null;
@@ -46,7 +46,6 @@
 			sugar: string;
 			salt: string;
 		};
-		
 	}
 
 	let filtersOpen = $state(false);
@@ -90,7 +89,6 @@
 			barcode: product.barcode,
 
 			image: product.imageUrl ?? '',
-			
 
 			ingredients: '',
 

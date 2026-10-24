@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	
+
 	import { getCurrentUser, logout, type AuthUser } from '$lib/api';
 
 	let query = $state('');
@@ -63,16 +63,13 @@
 
 				<input bind:value={query} placeholder="Search for a product..." />
 			</form>
-			
 		</div>
 	{/if}
 
 	<div class="nav-links">
-		
 		<a href={resolve('/compare')}>Compare</a>
 		<a href={resolve('/discover')}>Discover</a>
 		{#if user}
-			
 			<a href={resolve('/profile')}>{user.name}</a>
 			<button class="nav-button" onclick={() => void signOut()}>Sign out</button>
 		{:else}
@@ -81,8 +78,6 @@
 		{/if}
 	</div>
 </nav>
-
-
 
 <style>
 	nav {

@@ -318,8 +318,6 @@
 		}
 	}
 
-	
-
 	function applyFilters() {
 		appliedQuery = query.trim();
 		appliedStatus = status;
@@ -362,8 +360,8 @@
 	>
 		<input bind:value={query} placeholder="Search products" aria-label="Search products" />
 		<select bind:value={status} aria-label="Image status">
-			<option value="missing">Missing images</option><option
-				value="existing">Existing images</option
+			<option value="missing">Missing images</option><option value="existing"
+				>Existing images</option
 			>
 		</select>
 		<button disabled={loading}>Filter</button>
@@ -551,9 +549,9 @@
 							</button>
 						</div>
 					{:else}<div class="actions">
-							<button onclick={() => beginEdit(product)}>Edit</button
-							>{#if product.image_url}
-								<button class="danger" onclick={() => void remove(product)}>Remove Image</button>{/if}
+							<button onclick={() => beginEdit(product)}>Edit</button>{#if product.image_url}
+								<button class="danger" onclick={() => void remove(product)}>Remove Image</button
+								>{/if}
 							<button
 								class="danger"
 								disabled={deleting === product.id}

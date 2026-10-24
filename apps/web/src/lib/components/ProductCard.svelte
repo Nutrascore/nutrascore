@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { compareStore } from '$lib/stores/compareStore';
-	
 
 	let {
 		product,
@@ -11,9 +10,8 @@
 			id: string;
 			name: string;
 			brand: string;
-			
+
 			image: string;
-			
 		};
 		selectMode?: boolean;
 	} = $props();
@@ -28,8 +26,6 @@
 			.then((user) => (signedIn = Boolean(user)))
 			.catch(() => (signedIn = false));
 	});
-
-	
 
 	function addToComparison(event: MouseEvent) {
 		event.stopPropagation();
@@ -78,12 +74,9 @@
 			<h3>{product.name || 'Unnamed product'}</h3>
 
 			<p class="brand">{product.brand || 'Brand not listed'}</p>
-
-			
 		</div>
 	</a>
 
-	
 	{#if actionError}<p class="action-error">{actionError}</p>{/if}
 
 	{#if selectMode}
@@ -229,15 +222,9 @@
 		overflow-wrap: anywhere;
 	}
 
-	
-
 	.card-actions {
 		padding: 0 16px 16px;
 	}
-
-	
-
-	
 
 	.action-error {
 		margin: 0 16px 12px;

@@ -23,9 +23,7 @@
 		comparisonRequestId++;
 
 		// Immediately remove only the selected product.
-		comparisonProducts = comparisonProducts.filter(
-			(product) => product.id !== productId
-		);
+		comparisonProducts = comparisonProducts.filter((product) => product.id !== productId);
 
 		loading = false;
 		error = '';
@@ -34,53 +32,53 @@
 	}
 
 	function nutritionComparison(
-	product: Product,
-	other: Product,
-	key: keyof NonNullable<Product['nutrition']>,
-	unit: string
+		product: Product,
+		other: Product,
+		key: keyof NonNullable<Product['nutrition']>,
+		unit: string
 	) {
-	const value = product.nutrition?.[key];
-	const otherValue = other.nutrition?.[key];
+		const value = product.nutrition?.[key];
+		const otherValue = other.nutrition?.[key];
 
-	const comparison = formatComparisonNutrition(value, otherValue, unit);
+		const comparison = formatComparisonNutrition(value, otherValue, unit);
 
-	let percentageClass = 'neutral';
+		let percentageClass = 'neutral';
 
-	if (
-		value != null &&
-		otherValue != null &&
-		Number.isFinite(Number(value)) &&
-		Number.isFinite(Number(otherValue)) &&
-		Number(otherValue) !== 0
-	) {
-		const percentage =
-			((Number(value) - Number(otherValue)) / Math.abs(Number(otherValue))) * 100;
+		if (
+			value != null &&
+			otherValue != null &&
+			Number.isFinite(Number(value)) &&
+			Number.isFinite(Number(otherValue)) &&
+			Number(otherValue) !== 0
+		) {
+			const percentage =
+				((Number(value) - Number(otherValue)) / Math.abs(Number(otherValue))) * 100;
 
-		if (percentage > 0) {
-			percentageClass = 'positive';
-		} else if (percentage < 0) {
-			percentageClass = 'negative';
+			if (percentage > 0) {
+				percentageClass = 'positive';
+			} else if (percentage < 0) {
+				percentageClass = 'negative';
+			}
 		}
-	}
 
-	return {
-		value: comparison.value,
-		percentage: comparison.percentage,
-		percentageClass
-	};
+		return {
+			value: comparison.value,
+			percentage: comparison.percentage,
+			percentageClass
+		};
 	}
 
 	let warningMessage = '';
 	let warningTimeout: ReturnType<typeof setTimeout>;
 
 	function showComparisonWarning() {
-	warningMessage = 'Only 2 products can be compared';
+		warningMessage = 'Only 2 products can be compared';
 
-	clearTimeout(warningTimeout);
+		clearTimeout(warningTimeout);
 
-	warningTimeout = setTimeout(() => {
-		warningMessage = '';
-	}, 2500);
+		warningTimeout = setTimeout(() => {
+			warningMessage = '';
+		}, 2500);
 	}
 
 	async function loadComparison(ids: string[]) {
@@ -90,9 +88,7 @@
 		error = '';
 
 		// Preserve any already-loaded products that remain selected.
-		comparisonProducts = comparisonProducts.filter((product) =>
-			selectedIds.includes(product.id)
-		);
+		comparisonProducts = comparisonProducts.filter((product) => selectedIds.includes(product.id));
 
 		if (selectedIds.length < 2) {
 			loading = false;
@@ -108,19 +104,14 @@
 			if (requestId !== comparisonRequestId) return;
 
 			comparisonProducts = selectedIds
-				.map((id) =>
-					result.products.find((product) => product.id === id)
-				)
+				.map((id) => result.products.find((product) => product.id === id))
 				.filter((product): product is Product => Boolean(product));
 		} catch (err) {
 			if (requestId !== comparisonRequestId) return;
 
 			console.error(err);
 
-			error =
-				err instanceof Error
-					? err.message
-					: 'Unable to compare products.';
+			error = err instanceof Error ? err.message : 'Unable to compare products.';
 		} finally {
 			if (requestId === comparisonRequestId) {
 				loading = false;
@@ -145,57 +136,51 @@
 </svelte:head>
 
 <main>
-	<div class="comparison-main"> 
-	<section class="compare-header">
-		<h1>Compare Products</h1>
-		<p>Select two products to compare their nutrition and ingredients.</p>
-	</section>
+	<div class="comparison-main">
+		<section class="compare-header">
+			<h1>Compare Products</h1>
+			<p>Select two products to compare their nutrition and ingredients.</p>
+		</section>
 
-	{#if warningMessage}
-	<div class="comparison-warning" role="status">
-		{warningMessage}
-	</div>
-	{/if}
-
-	<section class="comparison-products">
-		{#each comparisonProducts as product (product.id)}
-			<div class="comparison-product">
-				<div class="product-image">
-					{#if product.imageUrl}
-						<img src={product.imageUrl} alt={product.name} />
-					{:else}
-						<span>No Image</span>
-					{/if}
-				</div>
-
-				<div class="product-info">
-					<span class="category">
-						{product.categories[0] ?? 'Product'}
-					</span>
-
-					<h2>{product.name}</h2>
-					<p>{product.brand ?? 'Unknown brand'}</p>
-				</div>
-
-				<button
-					type="button"
-					class="change-product"
-					onclick={() => removeProduct(product.id)}
-				>
-					Remove
-				</button>
+		{#if warningMessage}
+			<div class="comparison-warning" role="status">
+				{warningMessage}
 			</div>
-		{/each}
-
-		{#if selectedProductIds.length < 2}
-			<button type="button" class="add-product" onclick={addProduct}>
-				<span class="plus">+</span>
-				<span >Add Product</span>
-			</button>
 		{/if}
-		
-		
-	</section>
+
+		<section class="comparison-products">
+			{#each comparisonProducts as product (product.id)}
+				<div class="comparison-product">
+					<div class="product-image">
+						{#if product.imageUrl}
+							<img src={product.imageUrl} alt={product.name} />
+						{:else}
+							<span>No Image</span>
+						{/if}
+					</div>
+
+					<div class="product-info">
+						<span class="category">
+							{product.categories[0] ?? 'Product'}
+						</span>
+
+						<h2>{product.name}</h2>
+						<p>{product.brand ?? 'Unknown brand'}</p>
+					</div>
+
+					<button type="button" class="change-product" onclick={() => removeProduct(product.id)}>
+						Remove
+					</button>
+				</div>
+			{/each}
+
+			{#if selectedProductIds.length < 2}
+				<button type="button" class="add-product" onclick={addProduct}>
+					<span class="plus">+</span>
+					<span>Add Product</span>
+				</button>
+			{/if}
+		</section>
 	</div>
 
 	{#if loading}
@@ -220,7 +205,9 @@
 						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
 						{@const comparison = nutritionComparison(product, other, 'kcalPer100g', ' kcal')}
 						<span>
-							{comparison.value} (<span class={comparison.percentageClass}>{comparison.percentage}</span>)
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
 						</span>
 					{/each}
 				</div>
@@ -231,7 +218,9 @@
 						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
 						{@const comparison = nutritionComparison(product, other, 'proteinG', ' g')}
 						<span>
-							{comparison.value} (<span class={comparison.percentageClass}>{comparison.percentage}</span>)
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
 						</span>
 					{/each}
 				</div>
@@ -242,7 +231,9 @@
 						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
 						{@const comparison = nutritionComparison(product, other, 'carbohydratesG', ' g')}
 						<span>
-							{comparison.value} (<span class={comparison.percentageClass}>{comparison.percentage}</span>)
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
 						</span>
 					{/each}
 				</div>
@@ -253,7 +244,9 @@
 						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
 						{@const comparison = nutritionComparison(product, other, 'fatG', ' g')}
 						<span>
-							{comparison.value} (<span class={comparison.percentageClass}>{comparison.percentage}</span>)
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
 						</span>
 					{/each}
 				</div>
@@ -264,7 +257,9 @@
 						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
 						{@const comparison = nutritionComparison(product, other, 'sugarsG', ' g')}
 						<span>
-							{comparison.value} (<span class={comparison.percentageClass}>{comparison.percentage}</span>)
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
 						</span>
 					{/each}
 				</div>
@@ -275,7 +270,9 @@
 						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
 						{@const comparison = nutritionComparison(product, other, 'saltG', ' g')}
 						<span>
-							{comparison.value} (<span class={comparison.percentageClass}>{comparison.percentage}</span>)
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
 						</span>
 					{/each}
 				</div>
@@ -314,9 +311,7 @@
 			</div>
 		</section>
 	{:else}
-		<p class="comparison-hint">
-			Add products to start comparing.
-		</p>
+		<p class="comparison-hint">Add products to start comparing.</p>
 	{/if}
 </main>
 
@@ -362,9 +357,8 @@
 		cursor: pointer;
 		font-size: 16px;
 		color: #555;
-		
+
 		transform: translate(75px, 20px);
-		
 	}
 
 	.add-product:hover {
@@ -500,18 +494,18 @@
 	}
 
 	.nutrition-row .positive {
-	color: #16803c !important;
-	font-weight: 600;
+		color: #16803c !important;
+		font-weight: 600;
 	}
 
 	.nutrition-row .negative {
-	color: #c62828 !important;
-	font-weight: 600;
+		color: #c62828 !important;
+		font-weight: 600;
 	}
 
 	.nutrition-row .neutral {
-	color: inherit;
-	font-weight: inherit;
+		color: inherit;
+		font-weight: inherit;
 	}
 	.nutrition-row:last-child {
 		border-bottom: none;
