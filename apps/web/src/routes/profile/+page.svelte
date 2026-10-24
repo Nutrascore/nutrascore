@@ -32,7 +32,9 @@
 	{:else if user}
 		<h1>Your profile</h1>
 		<div class="details">
-			<strong>{user.name}</strong><span>{user.email}</span><span>Role: {user.role}</span>
+			<span>Name: {user.name}</span>
+			<span>Email: {user.email}</span>
+			<span>Role: {user.role}</span>
 		</div>
 		<div class="actions">
 			{#if user.role === 'moderator'}<a href={resolve('/moderator')}>Moderator dashboard</a

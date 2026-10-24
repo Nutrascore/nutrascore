@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { pool } from '../db/pool.js';
+import { numericToNumber } from '../db/numeric.js';
 
 interface CategoryParams {
   id: string;
@@ -86,9 +87,9 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         p.id,
         p.name,
         p.brand,
-        p.barcode,
         p.nutri_score,
         p.nova_group,
+        p.price_inr,
         n.kcal_per_100g,
         n.fat_g,
         n.saturated_fat_g,
@@ -99,6 +100,13 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         n.protein_g,
         n.sodium_mg,
         n.salt_g,
+        n.cholesterol_mg,
+        n.calcium_mg,
+        n.iron_mg,
+        n.vitamins,
+        n.serving_size,
+        n.serving_unit,
+        n.nutrition_basis,
         image.image_url,
         category.name AS category_name
       FROM "Products" p
@@ -149,11 +157,11 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         id: product.id,
         name: product.name,
         brand: product.brand,
-        barcode: product.barcode,
         imageUrl: product.image_url,
         category: product.category_name,
         nutriScore: product.nutri_score,
         novaGroup: product.nova_group,
+        priceInr: numericToNumber(product.price_inr),
         nutrition: {
           kcalPer100g: product.kcal_per_100g,
           fatG: product.fat_g,
@@ -165,6 +173,13 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
           proteinG: product.protein_g,
           sodiumMg: product.sodium_mg,
           saltG: product.salt_g,
+          cholesterolMg: product.cholesterol_mg,
+          calciumMg: product.calcium_mg,
+          ironMg: product.iron_mg,
+          vitamins: product.vitamins,
+          servingSize: product.serving_size,
+          servingUnit: product.serving_unit,
+          basis: product.nutrition_basis === 'per_serving' ? 'perServing' : 'per100g',
         },
       })),
 

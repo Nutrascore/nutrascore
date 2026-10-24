@@ -7,7 +7,9 @@
     "dev:api": "pnpm --filter api dev",
     "check": "pnpm --filter web check && pnpm --filter api typecheck",
     "lint": "pnpm --filter web lint",
-    "test": "pnpm --filter web test:unit && pnpm --filter api test",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "pnpm --filter web test:unit && pnpm --filter api test:unit && python -m unittest discover -s tests/unit/scripts -p \"test_*.py\"",
+    "test:integration": "pnpm --filter api test:integration",
     "build": "pnpm --filter web build && pnpm --filter api build",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate"

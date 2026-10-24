@@ -2,50 +2,138 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import ProductCard from '$lib/components/ProductCard.svelte';
 	import { compareStore } from '$lib/stores/compareStore';
 	import { getCategories, searchProducts } from '$lib/api';
-	import { formatNutritionValue } from '$lib/utils/formatNutrition';
 	import { getVisiblePages } from '$lib/pagination';
+
+	interface CategoryOption {
+		id: string;
+		name: string;
+		productCount: number;
+	}
+
+	interface CategoryFilterOption {
+		name: string;
+		categoryNames: string[];
+	}
+
+	const commonCategoryFilters = [
+		{
+			name: 'Snacks',
+			categoryNames: [
+				'snacks',
+				'namkeen',
+				'potatochips',
+				'chips',
+				'crisps',
+				'makhna',
+				'mixture',
+				'puffs',
+				'puffss',
+				'poppedchips',
+				'popcorn',
+				'potato sticks',
+				'murukku',
+				'mini samosa',
+				'kodbale'
+			]
+		},
+		{
+			name: 'Biscuits',
+			categoryNames: [
+				'biscuit',
+				'cookies',
+				'butter cookies',
+				'digestive biscuit',
+				'cracker',
+				'rusk',
+				'wafer',
+				'cream biscuit',
+				'glucose biscuit'
+			]
+		},
+		{
+			name: 'Beverages',
+			categoryNames: ['juice', 'fruit beverage', 'soda', 'milkshake', 'coffee', 'coconut water']
+		},
+		{
+			name: 'Dairy',
+			categoryNames: [
+				'dairy',
+				'icecream',
+				'icereames',
+				'kulfi',
+				'yogurt',
+				'cheese',
+				'condensed milk',
+				'cream',
+				'creame'
+			]
+		},
+		{
+			name: 'Breakfast Foods',
+			categoryNames: ['cereal', 'oats', 'musli', 'pancake mix', 'poha']
+		},
+		{
+			name: 'Sweets',
+			categoryNames: [
+				'chocolate',
+				'chocolate bar',
+				'candy',
+				'sweets',
+				'laddu',
+				'toffee',
+				'burfi',
+				'peda',
+				'chocobar',
+				'choco fills',
+				'chocolatespread',
+				'brownie',
+				'cake',
+				'waffle',
+				'pie',
+				'petha',
+				'jelly'
+			]
+		},
+		{
+			name: 'Instant Foods',
+			categoryNames: ['instant food', 'noodles']
+		},
+		{
+			name: 'Sauces & Condiments',
+			categoryNames: [
+				'spread',
+				'sauce',
+				'masala powder',
+				'pickle',
+				'mayonnaise',
+				'jam',
+				'peanut butter',
+				'chutney',
+				'basil pisto dip'
+			]
+		}
+	] satisfies CategoryFilterOption[];
 
 	interface ApiProduct {
 		id: string;
 		name: string;
 		brand: string | null;
-		barcode: string | null;
 		nutriScore: string | null;
 		novaGroup: number | null;
+		priceInr?: number | null;
 		imageUrl: string | null;
-
-		nutrition: {
-			kcalPer100g: string | null;
-			fatG: string | null;
-			saturatedFatG: string | null;
-			transFatG: string | null;
-			carbohydratesG: string | null;
-			sugarsG: string | null;
-			fibreG: string | null;
-			proteinG: string | null;
-			sodiumMg: string | null;
-			saltG: string | null;
-		} | null;
 	}
 
 	interface FrontendProduct {
 		id: string;
 		name: string;
 		brand: string;
-		barcode: string | null;
 		image: string;
 		ingredients: string;
-		nutrition: {
-			calories: string;
-			protein: string;
-			carbohydrates: string;
-			fat: string;
-			sugar: string;
-			salt: string;
-		};
 	}
 
 	let filtersOpen = $state(false);
@@ -55,30 +143,58 @@
 	let currentPage = $state(Math.max(Number(page.url.searchParams.get('page')) || 1, 1));
 	let totalPages = $state(1);
 	let totalProducts = $state(0);
-	let categoryOptions = $state<string[]>([]);
+	let categoryOptions = $state<CategoryOption[]>([]);
 	const pageSize = 24;
 	let lastFilterKey = '';
 	let requestSequence = 0;
 
-	const filters = {
-		nutrition: ['High Protein', 'Low Sugar', 'Low Calories']
-	};
-
 	let selectedFilters = $state({
-		category: [] as string[],
-		nutrition: [] as string[]
+		category: [] as string[]
 	});
 
 	let searchQuery = $derived(page.url.searchParams.get('q') ?? '');
+	let visibleCategories = $derived.by(() =>
+		commonCategoryFilters.flatMap((filter) => {
+			const categoryNames = categoryOptions
+				.filter((category) => filter.categoryNames.includes(normalizeCategoryName(category.name)))
+				.map((category) => category.name.trim().toLowerCase());
 
-	function toggleFilter(type: 'category' | 'nutrition', value: string) {
-		const selected = selectedFilters[type];
+			return categoryNames.length > 0
+				? [{ name: filter.name, categoryNames: [...new Set(categoryNames)] }]
+				: [];
+		})
+	);
+	let selectedCategoryNames = $derived(
+		visibleCategories
+			.filter((category) => selectedFilters.category.includes(category.name))
+			.flatMap((category) => category.categoryNames)
+	);
 
-		if (selected.includes(value)) {
-			selectedFilters[type] = selected.filter((item) => item !== value);
+	function toggleCategory(category: string) {
+		const selected = selectedFilters.category;
+
+		if (selected.includes(category)) {
+			selectedFilters.category = selected.filter((item) => item !== category);
 		} else {
-			selectedFilters[type] = [...selected, value];
+			selectedFilters.category = [...selected, category];
 		}
+	}
+
+	function updatePageInUrl(pageNumber: number) {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (pageNumber === 1) {
+			params.delete('page');
+		} else {
+			params.set('page', String(pageNumber));
+		}
+
+		const query = params.toString();
+		const target = query ? (`/discover?${query}` as `/discover?${string}`) : '/discover';
+		void goto(resolve(target as '/discover' | `/discover?${string}`), {
+			replaceState: true,
+			keepFocus: true,
+			noScroll: true
+		});
 	}
 
 	function convertProduct(product: ApiProduct): FrontendProduct {
@@ -86,45 +202,28 @@
 			id: product.id,
 			name: product.name,
 			brand: product.brand ?? 'Unknown brand',
-			barcode: product.barcode,
 
 			image: product.imageUrl ?? '',
 
-			ingredients: '',
-
-			nutrition: {
-				calories: formatNutritionValue(product.nutrition?.kcalPer100g),
-				protein: formatNutritionValue(product.nutrition?.proteinG),
-				carbohydrates: formatNutritionValue(product.nutrition?.carbohydratesG),
-				fat: formatNutritionValue(product.nutrition?.fatG),
-				sugar: formatNutritionValue(product.nutrition?.sugarsG),
-				salt: formatNutritionValue(product.nutrition?.saltG)
-			}
+			ingredients: ''
 		};
 	}
 
-	async function loadProducts(
-		query: string,
-		categories: string[],
-		nutrition: string[],
-		pageNumber: number
-	) {
+	async function loadProducts(query: string, categories: string[], pageNumber: number) {
 		const requestId = ++requestSequence;
 		loading = true;
 		error = '';
 
 		try {
-			const searchResult = await searchProducts(query, pageNumber, pageSize, {
-				categories,
-				nutrition
-			});
+			const searchResult = await searchProducts(query, pageNumber, pageSize, { categories });
 
 			if (requestId !== requestSequence) return;
 			apiProducts = searchResult.products.map(convertProduct);
 			totalPages = searchResult.totalPages;
 			totalProducts = searchResult.total;
-			if (pageNumber > searchResult.totalPages && searchResult.totalPages > 0) {
-				currentPage = searchResult.totalPages;
+			if (pageNumber > Math.max(searchResult.totalPages, 1)) {
+				currentPage = Math.max(searchResult.totalPages, 1);
+				updatePageInUrl(currentPage);
 			}
 		} catch (err) {
 			if (requestId !== requestSequence) return;
@@ -140,25 +239,30 @@
 
 	$effect(() => {
 		const query = searchQuery.trim();
-		const categories = selectedFilters.category.join(',');
-		const nutrition = selectedFilters.nutrition.join(',');
-		const filterKey = `${query}\0${categories}\0${nutrition}`;
+		const categories = selectedCategoryNames.join(',');
+		const filterKey = `${query}\0${categories}`;
 
 		if (filterKey !== lastFilterKey) {
 			lastFilterKey = filterKey;
 			if (currentPage !== 1) {
 				currentPage = 1;
-				return;
 			}
+			if (page.url.searchParams.has('page')) updatePageInUrl(1);
+			if (currentPage !== 1) return;
 		}
 
-		void loadProducts(query, selectedFilters.category, selectedFilters.nutrition, currentPage);
+		void loadProducts(query, selectedCategoryNames, currentPage);
 	});
 
 	$effect(() => {
 		getCategories()
 			.then((result) => {
-				categoryOptions = result.categories.map((category) => category.name);
+				categoryOptions = [...result.categories]
+					.sort(
+						(first, second) =>
+							second.productCount - first.productCount || first.name.localeCompare(second.name)
+					)
+					.map(({ id, name, productCount }) => ({ id, name, productCount }));
 			})
 			.catch((err) => {
 				console.error(err);
@@ -169,22 +273,15 @@
 	function goToPage(page: number) {
 		if (page >= 1 && page <= totalPages && page !== currentPage) {
 			currentPage = page;
-			const currentParams = new URL(window.location.href).searchParams;
-			const params = [...currentParams.entries()]
-				.filter(([key]) => key !== 'page')
-				.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-			if (page !== 1) params.push(`page=${page}`);
-			const query = params.length > 0 ? `?${params.join('&')}` : '';
-			const target = query ? (`/discover${query}` as `/discover?${string}`) : '/discover';
-			void goto(resolve(target as '/discover' | `/discover?${string}`), {
-				replaceState: true,
-				keepFocus: true,
-				noScroll: true
-			});
+			updatePageInUrl(page);
 		}
 	}
 
 	let filteredProducts = $derived(apiProducts);
+
+	function normalizeCategoryName(name: string) {
+		return name.trim().replace(/\s+/g, ' ').toLowerCase();
+	}
 </script>
 
 <svelte:head>
@@ -207,37 +304,49 @@
 		{#if filtersOpen}
 			<div class="filters">
 				<div class="filter-group">
-					<span class="filter-label">Category</span>
-
-					<div class="filter-options">
-						{#each categoryOptions as category (category)}
+					<div class="category-heading">
+						<span class="filter-label">Category</span>
+						{#if selectedFilters.category.length > 0}
 							<button
 								type="button"
-								class="filter-option"
-								class:selected={selectedFilters.category.includes(category)}
-								onclick={() => toggleFilter('category', category)}
+								class="clear-categories"
+								onclick={() => (selectedFilters.category = [])}
 							>
-								{category}
+								Clear selection
 							</button>
-						{/each}
+						{/if}
 					</div>
-				</div>
 
-				<div class="filter-group">
-					<span class="filter-label">Nutrition</span>
+					{#if selectedFilters.category.length > 0}
+						<div class="selected-categories" aria-label="Selected categories">
+							{#each selectedFilters.category as category (category)}
+								<button
+									type="button"
+									class="selected-category"
+									aria-label={`Remove category ${category}`}
+									onclick={() => toggleCategory(category)}
+								>
+									{category}<span aria-hidden="true">×</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
 
-					<div class="filter-options">
-						{#each filters.nutrition as nutrition (nutrition)}
-							<button
-								type="button"
-								class="filter-option"
-								class:selected={selectedFilters.nutrition.includes(nutrition)}
-								onclick={() => toggleFilter('nutrition', nutrition)}
-							>
-								{nutrition}
-							</button>
-						{/each}
-					</div>
+					{#if visibleCategories.length > 0}
+						<div class="filter-options">
+							{#each visibleCategories as category (category.name)}
+								<button
+									type="button"
+									class="filter-option"
+									class:selected={selectedFilters.category.includes(category.name)}
+									aria-pressed={selectedFilters.category.includes(category.name)}
+									onclick={() => toggleCategory(category.name)}
+								>
+									{category.name}
+								</button>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</div>
 		{/if}
@@ -327,10 +436,10 @@
 	}
 
 	.filters-section {
-		margin-bottom: 60px;
+		margin-bottom: 36px;
 		border: 1px solid #e5e5e5;
-		border-radius: 16px;
-		background: #fafafa;
+		border-radius: 12px;
+		background: #fff;
 		overflow: hidden;
 	}
 
@@ -339,17 +448,17 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 20px 24px;
+		padding: 14px 18px;
 		border: none;
 		background: transparent;
-		font-size: 20px;
+		font-size: 16px;
 		font-weight: 600;
 		cursor: pointer;
 		text-align: left;
 	}
 
 	.arrow {
-		font-size: 24px;
+		font-size: 20px;
 		transition: transform 0.2s ease;
 	}
 
@@ -360,47 +469,88 @@
 	.filters {
 		display: flex;
 		flex-direction: column;
-		gap: 22px;
-		padding: 0 24px 24px;
+		gap: 14px;
+		padding: 0 18px 18px;
 	}
 
 	.filter-group {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 8px;
 	}
 
 	.filter-label {
 		font-size: 14px;
 		font-weight: 600;
-		color: #444;
+		color: #254332;
+	}
+
+	.category-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.clear-categories {
+		width: fit-content;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: #216b48;
+		font: inherit;
+		font-size: 13px;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+
+	.selected-categories {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.selected-category {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 8px;
+		border: 1px solid #b8d5c2;
+		border-radius: 999px;
+		background: #edf6ef;
+		color: #185238;
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
 	}
 
 	.filter-options {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 10px;
+		gap: 6px;
 	}
 
 	.filter-option {
-		padding: 9px 16px;
-		border: 1px solid #ddd;
-		border-radius: 20px;
-		background: white;
+		padding: 6px 10px;
+		border: 1px solid #d8ded9;
+		border-radius: 8px;
+		background: #fff;
+		color: #254332;
 		cursor: pointer;
-		font-size: 14px;
-		transition: 0.2s;
+		font: inherit;
+		font-size: 13px;
 	}
 
 	.filter-option:hover {
-		background: #f0f0f0;
-		border-color: #bbb;
+		background: #f2f7f3;
+		border-color: #9cbea7;
 	}
 
 	.filter-option.selected {
-		background: #080808;
+		background: #27764f;
 		color: white;
-		border-color: #080808;
+		border-color: #27764f;
 	}
 
 	.section-header {
@@ -476,7 +626,7 @@
 	.pagination button.current {
 		border-color: #27764f;
 		background: #27764f;
-		color: #fff;
+		color: white;
 		font-weight: 700;
 	}
 

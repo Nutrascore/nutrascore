@@ -10,6 +10,9 @@ playwright-report/
 test-results/
 apps/api/uploads/*
 .DS_Store
-data/
+data/reports/
+data/processed/
+data/moderator_storage_state.json
+/moderator-storage.json
 __pycache__/
 *.py[cod]

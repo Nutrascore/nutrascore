@@ -1,0 +1,5 @@
+duckdb
+pandas
+playwright
+psycopg[binary]
+python-dotenv

@@ -40,8 +40,16 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install Python test dependencies
+        run: python -m pip install -r requirements-test.txt
 
       - name: Install Lightning CSS native binary
         run: pnpm --filter web add lightningcss-linux-x64-gnu@1.33.0
@@ -59,6 +67,8 @@ jobs:
 
       - name: Test
         run: pnpm test
+        env:
+          DATABASE_URL: postgresql://nutrascore:nutrascore_dev@localhost:5432/nutrascore
 
       - name: Build
         run: pnpm build
