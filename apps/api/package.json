@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "admin:promote-moderator": "tsx src/admin/promote-moderator.ts",
     "test:watch": "vitest"
   },
   "keywords": [],
@@ -20,6 +21,9 @@
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
     "@fastify/cors": "^11.3.0",
+    "@fastify/multipart": "^9.2.1",
+    "@fastify/static": "^8.2.0",
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.12.1",
     "parquetjs-lite": "^0.8.7",

@@ -1,25 +1,41 @@
-node_modules
+# Dependencies
+node_modules/
 
-# Output
-.output
-.vercel
-.netlify
-.wrangler
-/.svelte-kit
-/build
+# Build output
+.output/
+.vercel/
+.netlify/
+.wrangler/
+/.svelte-kit/
+/build/
+dist/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Env
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
 !.env.test
 
+# Local browser authentication state
+/moderator-storage.json
+playwright/.auth/
+.storage/
+
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
 # Playwright
-test-results
+test-results/
+playwright-report/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Local logs
+*.log

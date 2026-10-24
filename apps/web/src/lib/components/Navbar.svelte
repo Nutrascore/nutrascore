@@ -2,10 +2,23 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import BarcodeScanner from '$lib/components/BarcodeScanner.svelte';
+
+	import { getCurrentUser, logout, type AuthUser } from '$lib/api';
 
 	let query = $state('');
-	let scannerOpen = $state(false);
+
+	let user = $state<AuthUser | null>(null);
+
+	$effect(() => {
+		getCurrentUser()
+			.then((value) => (user = value))
+			.catch(() => (user = null));
+	});
+
+	async function signOut() {
+		await logout();
+		user = null;
+	}
 
 	function search() {
 		const trimmedQuery = query.trim();
@@ -50,29 +63,28 @@
 
 				<input bind:value={query} placeholder="Search for a product..." />
 			</form>
-			<button class="scan-button" type="button" onclick={() => (scannerOpen = true)}>
-				Scan Barcode
-			</button>
 		</div>
 	{/if}
 
 	<div class="nav-links">
-		<a href={resolve('/categories')}>Categories</a>
 		<a href={resolve('/compare')}>Compare</a>
 		<a href={resolve('/discover')}>Discover</a>
+		{#if user}
+			<a href={resolve('/profile')}>{user.name}</a>
+			<button class="nav-button" onclick={() => void signOut()}>Sign out</button>
+		{:else}
+			<a href={resolve('/login')}>Sign in</a>
+			<a href={resolve('/register')}>Register</a>
+		{/if}
 	</div>
 </nav>
-
-{#if scannerOpen}
-	<BarcodeScanner onClose={() => (scannerOpen = false)} />
-{/if}
 
 <style>
 	nav {
 		background-color: #080808;
 		display: flex;
 		align-items: center;
-		padding: 10px 40px;
+		padding: 10px clamp(12px, 4vw, 40px);
 		gap: 20px;
 		border-bottom: 1px solid #ddd;
 		position: relative;
@@ -94,9 +106,8 @@
 		align-items: center;
 		gap: 12px;
 
-		position: absolute;
-		left: 50%;
-		transform: translateX(-50%);
+		flex: 1 1 420px;
+		min-width: 0;
 	}
 
 	.nav-search {
@@ -104,7 +115,7 @@
 		align-items: center;
 		gap: 12px;
 
-		width: 500px;
+		width: min(500px, 100%);
 		padding: 8px 18px;
 
 		background: #f5f5f5;
@@ -135,18 +146,12 @@
 		color: #888;
 	}
 
-	.scan-button {
-		padding: 10px 12px;
-		border: none;
-		border-radius: 12px;
-		cursor: pointer;
-		white-space: nowrap;
-	}
-
 	.nav-links {
 		display: flex;
+		flex-wrap: wrap;
 		margin-left: auto;
 		gap: 20px;
+		min-width: 0;
 	}
 
 	.nav-links a {
@@ -156,5 +161,49 @@
 
 	.nav-links a:hover {
 		text-decoration: underline;
+	}
+
+	.nav-button {
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: white;
+		font: inherit;
+		cursor: pointer;
+	}
+
+	@media (max-width: 900px) {
+		nav {
+			flex-wrap: wrap;
+		}
+
+		.discover-actions {
+			order: 3;
+			flex-basis: 100%;
+		}
+
+		.nav-search {
+			flex: 1;
+		}
+	}
+
+	@media (max-width: 560px) {
+		nav {
+			gap: 12px;
+		}
+
+		.nav-links {
+			gap: 10px 14px;
+			font-size: 14px;
+		}
+
+		.discover-actions {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.nav-search {
+			width: 100%;
+		}
 	}
 </style>

@@ -3,56 +3,135 @@
 	import { resolve } from '$app/paths';
 	import { compareStore } from '$lib/stores/compareStore';
 	import { compareProducts, type Product } from '$lib/api';
-	import { formatNutritionValue } from '$lib/utils/formatNutrition';
+	import { formatComparisonNutrition } from '$lib/utils/compareNutrition';
 
 	let selectedProductIds = $derived($compareStore);
 
-	let firstProduct = $state<Product | null>(null);
-	let secondProduct = $state<Product | null>(null);
-
+	let comparisonProducts = $state<Product[]>([]);
 	let loading = $state(false);
 	let error = $state('');
 
+	let comparisonRequestId = 0;
+	let previousIds = '';
+
 	function addProduct() {
+		if (selectedProductIds.length >= 2) {
+			showComparisonWarning();
+			return;
+		}
 		goto(resolve('/discover'));
 	}
 
 	function removeProduct(productId: string) {
+		// Invalidate any request that started before this removal.
+		comparisonRequestId++;
+
+		// Immediately remove only the selected product.
+		comparisonProducts = comparisonProducts.filter((product) => product.id !== productId);
+
+		loading = false;
+		error = '';
+
 		compareStore.removeProduct(productId);
 	}
 
-	async function loadComparison() {
-		const ids = selectedProductIds.slice(0, 2);
+	function nutritionComparison(
+		product: Product,
+		other: Product,
+		key: keyof NonNullable<Product['nutrition']>,
+		unit: string
+	) {
+		const value = product.nutrition?.[key];
+		const otherValue = other.nutrition?.[key];
 
-		firstProduct = null;
-		secondProduct = null;
+		const comparison = formatComparisonNutrition(value, otherValue, unit);
+
+		let percentageClass = 'neutral';
+
+		if (
+			value != null &&
+			otherValue != null &&
+			Number.isFinite(Number(value)) &&
+			Number.isFinite(Number(otherValue)) &&
+			Number(otherValue) !== 0
+		) {
+			const percentage =
+				((Number(value) - Number(otherValue)) / Math.abs(Number(otherValue))) * 100;
+
+			if (percentage > 0) {
+				percentageClass = 'positive';
+			} else if (percentage < 0) {
+				percentageClass = 'negative';
+			}
+		}
+
+		return {
+			value: comparison.value,
+			percentage: comparison.percentage,
+			percentageClass
+		};
+	}
+
+	let warningMessage = $state('');
+	let warningTimeout: ReturnType<typeof setTimeout>;
+
+	function showComparisonWarning() {
+		warningMessage = 'Only 2 products can be compared';
+
+		clearTimeout(warningTimeout);
+
+		warningTimeout = setTimeout(() => {
+			warningMessage = '';
+		}, 2500);
+	}
+
+	async function loadComparison(ids: string[]) {
+		const requestId = ++comparisonRequestId;
+		const selectedIds = [...new Set(ids)].slice(0, 2);
+
 		error = '';
 
-		if (ids.length < 2) {
+		// Preserve any already-loaded products that remain selected.
+		comparisonProducts = comparisonProducts.filter((product) => selectedIds.includes(product.id));
+
+		if (selectedIds.length < 2) {
+			loading = false;
 			return;
 		}
 
 		loading = true;
 
 		try {
-			const result = await compareProducts(ids);
+			const result = await compareProducts(selectedIds);
 
-			firstProduct = result.products.find((product) => product.id === ids[0]) ?? null;
+			// Ignore outdated responses.
+			if (requestId !== comparisonRequestId) return;
 
-			secondProduct = result.products.find((product) => product.id === ids[1]) ?? null;
+			comparisonProducts = selectedIds
+				.map((id) => result.products.find((product) => product.id === id))
+				.filter((product): product is Product => Boolean(product));
 		} catch (err) {
+			if (requestId !== comparisonRequestId) return;
+
 			console.error(err);
 
 			error = err instanceof Error ? err.message : 'Unable to compare products.';
 		} finally {
-			loading = false;
+			if (requestId === comparisonRequestId) {
+				loading = false;
+			}
 		}
 	}
 
 	$effect(() => {
-		void selectedProductIds;
+		const ids = [...selectedProductIds].slice(0, 2);
+		const signature = ids.join(',');
 
-		loadComparison();
+		// Avoid fetching again if the selection hasn't changed.
+		if (signature === previousIds) return;
+
+		previousIds = signature;
+		void loadComparison(ids);
 	});
 </script>
 
@@ -61,130 +140,145 @@
 </svelte:head>
 
 <main>
-	<section class="compare-header">
-		<h1>Compare Products</h1>
-		<p>Select two products to compare their nutrition, ingredients, and labels.</p>
-	</section>
+	<div class="comparison-main">
+		<section class="compare-header">
+			<h1>Compare Products</h1>
+			<p>Select two products to compare their nutrition and ingredients.</p>
+		</section>
 
-	<section class="comparison-products">
-		{#if firstProduct}
-			<div class="comparison-product">
-				<div class="product-image">
-					{#if firstProduct.imageUrl}
-						<img src={firstProduct.imageUrl} alt={firstProduct.name} />
-					{:else}
-						<span>No Image</span>
-					{/if}
-				</div>
-
-				<div class="product-info">
-					<span class="category">Product</span>
-
-					<h2>{firstProduct.name}</h2>
-
-					<p>{firstProduct.brand ?? 'Unknown brand'}</p>
-				</div>
-
-				<button
-					type="button"
-					class="change-product"
-					onclick={() => removeProduct(firstProduct!.id)}
-				>
-					Remove
-				</button>
+		{#if warningMessage}
+			<div class="comparison-warning" role="status">
+				{warningMessage}
 			</div>
-		{:else}
-			<button type="button" class="add-product" onclick={addProduct}>
-				<span class="plus">+</span>
-				<span>Add Product</span>
-			</button>
 		{/if}
 
-		<div class="vs">VS</div>
+		<section class="comparison-products">
+			{#each comparisonProducts as product (product.id)}
+				<div class="comparison-product">
+					<div class="product-image">
+						{#if product.imageUrl}
+							<img src={product.imageUrl} alt={product.name} />
+						{:else}
+							<span>No Image</span>
+						{/if}
+					</div>
 
-		{#if secondProduct}
-			<div class="comparison-product">
-				<div class="product-image">
-					{#if secondProduct.imageUrl}
-						<img src={secondProduct.imageUrl} alt={secondProduct.name} />
-					{:else}
-						<span>No Image</span>
-					{/if}
+					<div class="product-info">
+						<span class="category">
+							{product.categories[0] ?? 'Product'}
+						</span>
+
+						<h2>{product.name}</h2>
+						<p>{product.brand ?? 'Unknown brand'}</p>
+					</div>
+
+					<button type="button" class="change-product" onclick={() => removeProduct(product.id)}>
+						Remove
+					</button>
 				</div>
+			{/each}
 
-				<div class="product-info">
-					<span class="category">Product</span>
-
-					<h2>{secondProduct.name}</h2>
-
-					<p>{secondProduct.brand ?? 'Unknown brand'}</p>
-				</div>
-
-				<button
-					type="button"
-					class="change-product"
-					onclick={() => removeProduct(secondProduct!.id)}
-				>
-					Remove
+			{#if selectedProductIds.length < 2}
+				<button type="button" class="add-product" onclick={addProduct}>
+					<span class="plus">+</span>
+					<span>Add Product</span>
 				</button>
-			</div>
-		{:else}
-			<button type="button" class="add-product" onclick={addProduct}>
-				<span class="plus">+</span>
-				<span>Add Product</span>
-			</button>
-		{/if}
-	</section>
+			{/if}
+		</section>
+	</div>
 
 	{#if loading}
 		<p class="comparison-hint">Loading comparison...</p>
 	{:else if error}
 		<p class="comparison-hint error">{error}</p>
-	{:else if firstProduct && secondProduct}
+	{:else if comparisonProducts.length >= 2}
 		<section class="comparison-section">
 			<h2>Nutrition Comparison</h2>
 
 			<div class="nutrition-table">
 				<div class="nutrition-row nutrition-header">
 					<span>Nutrient</span>
-					<span>{firstProduct.name}</span>
-					<span>{secondProduct.name}</span>
+					{#each comparisonProducts as product (product.id)}
+						<span>{product.name}</span>
+					{/each}
 				</div>
 
 				<div class="nutrition-row">
 					<span>Calories</span>
-					<span>{formatNutritionValue(firstProduct.nutrition?.kcalPer100g, ' kcal')}</span>
-					<span>{formatNutritionValue(secondProduct.nutrition?.kcalPer100g, ' kcal')}</span>
+					{#each comparisonProducts as product, index (product.id)}
+						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
+						{@const comparison = nutritionComparison(product, other, 'kcalPer100g', ' kcal')}
+						<span>
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
+						</span>
+					{/each}
 				</div>
 
 				<div class="nutrition-row">
 					<span>Protein</span>
-					<span>{formatNutritionValue(firstProduct.nutrition?.proteinG, ' g')}</span>
-					<span>{formatNutritionValue(secondProduct.nutrition?.proteinG, ' g')}</span>
+					{#each comparisonProducts as product, index (product.id)}
+						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
+						{@const comparison = nutritionComparison(product, other, 'proteinG', ' g')}
+						<span>
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
+						</span>
+					{/each}
 				</div>
 
 				<div class="nutrition-row">
 					<span>Carbohydrates</span>
-					<span>{formatNutritionValue(firstProduct.nutrition?.carbohydratesG, ' g')}</span>
-					<span>{formatNutritionValue(secondProduct.nutrition?.carbohydratesG, ' g')}</span>
+					{#each comparisonProducts as product, index (product.id)}
+						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
+						{@const comparison = nutritionComparison(product, other, 'carbohydratesG', ' g')}
+						<span>
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
+						</span>
+					{/each}
 				</div>
 
 				<div class="nutrition-row">
 					<span>Fat</span>
-					<span>{formatNutritionValue(firstProduct.nutrition?.fatG, ' g')}</span>
-					<span>{formatNutritionValue(secondProduct.nutrition?.fatG, ' g')}</span>
+					{#each comparisonProducts as product, index (product.id)}
+						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
+						{@const comparison = nutritionComparison(product, other, 'fatG', ' g')}
+						<span>
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
+						</span>
+					{/each}
 				</div>
 
 				<div class="nutrition-row">
 					<span>Sugar</span>
-					<span>{formatNutritionValue(firstProduct.nutrition?.sugarsG, ' g')}</span>
-					<span>{formatNutritionValue(secondProduct.nutrition?.sugarsG, ' g')}</span>
+					{#each comparisonProducts as product, index (product.id)}
+						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
+						{@const comparison = nutritionComparison(product, other, 'sugarsG', ' g')}
+						<span>
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
+						</span>
+					{/each}
 				</div>
 
 				<div class="nutrition-row">
 					<span>Salt</span>
-					<span>{formatNutritionValue(firstProduct.nutrition?.saltG, ' g')}</span>
-					<span>{formatNutritionValue(secondProduct.nutrition?.saltG, ' g')}</span>
+					{#each comparisonProducts as product, index (product.id)}
+						{@const other = comparisonProducts[index === 0 ? 1 : 0]}
+						{@const comparison = nutritionComparison(product, other, 'saltG', ' g')}
+						<span>
+							{comparison.value} (<span class={comparison.percentageClass}
+								>{comparison.percentage}</span
+							>)
+						</span>
+					{/each}
 				</div>
 			</div>
 		</section>
@@ -193,53 +287,35 @@
 			<h2>Ingredients</h2>
 
 			<div class="ingredients-comparison">
-				<div>
-					<p>{firstProduct.ingredients ?? 'Ingredients unavailable.'}</p>
-				</div>
-
-				<div>
-					<p>{secondProduct.ingredients ?? 'Ingredients unavailable.'}</p>
-				</div>
+				{#each comparisonProducts as product (product.id)}
+					<div>
+						<p>{product.ingredients ?? 'Ingredients unavailable.'}</p>
+					</div>
+				{/each}
 			</div>
 		</section>
 
 		<section class="comparison-section">
-			<h2>Labels</h2>
+			<h2>Analysis</h2>
 
 			<div class="labels-comparison">
-				<div>
-					<div class="labels">
-						{#if firstProduct.nutriScore}
-							<span>
-								Nutri-Score {firstProduct.nutriScore.toUpperCase()}
-							</span>
-						{/if}
+				{#each comparisonProducts as product (product.id)}
+					<div>
+						<div class="labels">
+							{#if product.nutriScore}
+								<span>Nutri-Score {product.nutriScore.toUpperCase()}</span>
+							{/if}
 
-						{#if firstProduct.novaGroup}
-							<span>NOVA {firstProduct.novaGroup}</span>
-						{/if}
+							{#if product.novaGroup}
+								<span>NOVA {product.novaGroup}</span>
+							{/if}
+						</div>
 					</div>
-				</div>
-
-				<div>
-					<div class="labels">
-						{#if secondProduct.nutriScore}
-							<span>
-								Nutri-Score {secondProduct.nutriScore.toUpperCase()}
-							</span>
-						{/if}
-
-						{#if secondProduct.novaGroup}
-							<span>NOVA {secondProduct.novaGroup}</span>
-						{/if}
-					</div>
-				</div>
+				{/each}
 			</div>
 		</section>
 	{:else}
-		<p class="comparison-hint">
-			Add {firstProduct ? 'one more product' : 'two products'} to start comparing.
-		</p>
+		<p class="comparison-hint">Add products to start comparing.</p>
 	{/if}
 </main>
 
@@ -265,7 +341,7 @@
 
 	.comparison-products {
 		display: grid;
-		grid-template-columns: 1fr auto 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		align-items: stretch;
 		gap: 25px;
 		margin-bottom: 30px;
@@ -273,6 +349,7 @@
 
 	.add-product {
 		min-height: 220px;
+		min-width: 220px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -284,6 +361,8 @@
 		cursor: pointer;
 		font-size: 16px;
 		color: #555;
+
+		transform: translate(75px, 20px);
 	}
 
 	.add-product:hover {
@@ -304,20 +383,13 @@
 		font-weight: 300;
 	}
 
-	.vs {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 700;
-	}
-
 	.comparison-product {
 		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 20px;
-		padding: 20px;
+		min-width: 0;
+		padding: 48px 20px 20px;
 		border: 1px solid #e5e5e5;
 		border-radius: 16px;
 		background: white;
@@ -344,7 +416,8 @@
 	}
 
 	.product-info {
-		padding-right: 10px;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	.category {
@@ -364,8 +437,8 @@
 
 	.change-product {
 		position: absolute;
-		top: 15px;
-		right: 15px;
+		top: 12px;
+		right: 12px;
 		padding: 6px 10px;
 		border: 1px solid #ddd;
 		border-radius: 8px;
@@ -382,9 +455,16 @@
 	.comparison-hint {
 		text-align: center;
 		color: #666;
-		margin-bottom: 50px;
+		margin-bottom: 100px;
+		margin-right: 70px;
 	}
 
+	.comparison-main {
+		display: grid;
+		justify-content: center;
+		align-items: center;
+		flex-direction: column;
+	}
 	.comparison-hint.error {
 		color: #b00020;
 	}
@@ -405,11 +485,32 @@
 
 	.nutrition-row {
 		display: grid;
-		grid-template-columns: 1fr 1fr 1fr;
+		grid-template-columns: minmax(100px, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+		min-width: 0;
 		padding: 16px 20px;
+		gap: 12px;
 		border-bottom: 1px solid #e5e5e5;
 	}
 
+	.nutrition-row > span {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.nutrition-row .positive {
+		color: #16803c !important;
+		font-weight: 600;
+	}
+
+	.nutrition-row .negative {
+		color: #c62828 !important;
+		font-weight: 600;
+	}
+
+	.nutrition-row .neutral {
+		color: inherit;
+		font-weight: inherit;
+	}
 	.nutrition-row:last-child {
 		border-bottom: none;
 	}
@@ -422,15 +523,17 @@
 	.ingredients-comparison,
 	.labels-comparison {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		gap: 25px;
 	}
 
 	.ingredients-comparison > div,
 	.labels-comparison > div {
+		min-width: 0;
 		padding: 20px;
 		border: 1px solid #e5e5e5;
 		border-radius: 16px;
+		overflow-wrap: anywhere;
 	}
 
 	.ingredients-comparison p {
@@ -453,20 +556,45 @@
 
 	@media (max-width: 750px) {
 		main {
+			margin-top: 32px;
 			padding: 0 20px;
 		}
 
 		.comparison-products {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 		}
 
-		.vs {
-			height: 30px;
+		.nutrition-table {
+			overflow-x: auto;
+		}
+
+		.nutrition-row {
+			min-width: 540px;
 		}
 
 		.ingredients-comparison,
 		.labels-comparison {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+
+	@media (max-width: 420px) {
+		main {
+			padding: 0 12px;
+		}
+
+		.comparison-product {
+			gap: 12px;
+			padding: 42px 12px 16px;
+		}
+
+		.product-image {
+			width: 84px;
+			height: 84px;
+		}
+
+		.product-info h2 {
+			font-size: 16px;
 		}
 	}
 </style>
