@@ -1,143 +1,194 @@
 # NutraScore
 
-NutraScore helps people discover packaged foods sold in India and compare
-their nutrition, ingredients, serving sizes, prices, and categories. Registered
-users can manage accounts, and moderators can manage product details and image
-reviews.
+  NutraScore is a nutrition-discovery app for packaged foods sold in India. It lets people search product catalogues, compare nutrition and price information, review ingredients and serving sizes, and manage product data with moderator tools.
 
-## Repository layout
+  ## Scope and intended users
 
-- `apps/web/` — SvelteKit user interface.
-- `apps/api/` — Fastify API, PostgreSQL access, and Drizzle migrations.
-- `data/raw/` — source and cleaned product CSV files.
-- `script/` — CSV preparation, PostgreSQL import/synchronization, and image
-  maintenance scripts.
-- `tests/` — web, API, and script tests.
+  NutraScore is designed for:
 
-## Requirements
+  - shoppers comparing packaged foods before purchase,
+  - people looking up ingredients, serving sizes, and nutrition values,
+  - moderators reviewing product data and image quality,
+  - developers working on the local SvelteKit + Fastify stack.
 
-- Node.js 24 and pnpm 10.
-- PostgreSQL 17.
-- Python 3.13 for the CSV and maintenance scripts.
+  ## Features currently implemented
 
-Install JavaScript dependencies at the repository root:
+  - product search by name, brand, or category,
+  - category browsing and filtering,
+  - product detail pages with ingredients, price, serving size, and nutrition values,
+  - side-by-side product comparison for up to four products,
+  - account registration and login with CSRF-protected sessions,
+  - moderator tooling for product validation and image review status.
 
-```sh
-pnpm install
+  The app does not currently include a deployment pipeline, SSO, or browser-based end-to-end tests.
+
+  ## Technology stack
+
+  - Frontend: SvelteKit, TypeScript, Vite
+  - API: Fastify, TypeScript, Drizzle ORM, PostgreSQL
+  - Data import: Python, pandas, duckdb
+  - Validation: Vitest and Python unittest
+
+  ## Repository structure
+
+  - `apps/web/` — SvelteKit frontend
+  - `apps/api/` — Fastify API, Drizzle schema, and migrations
+  - `data/` — datasets, backups, reports, and processed exports
+  - `docs/` — project documentation and design notes
+  - `script/` — data import and maintenance utilities
+  - `tests/` — unit and integration tests
+
+  ## Prerequisites and supported versions
+
+  - Node.js 24
+  - pnpm 10
+  - Python 3.13
+  - PostgreSQL 17
+  - Git
+
+  The CI workflow in `.github/workflows/ci.yml` runs against Node.js 24, pnpm 10, Python 3.13, and PostgreSQL 17.
+
+  ## First-time installation after forking or cloning
+
+  From a fresh clone, run the following in PowerShell from the repository root:
+
+  ```powershell
+  git clone https://github.com/<your-user>/nutrascore.git
+  cd nutrascore
+  corepack enable
+  corepack prepare pnpm@10 --activate
+  pnpm install --frozen-lockfile
+  python -m pip install -r requirements-test.txt
+  ```
+
+  If you prefer to start PostgreSQL through Docker instead of a local service, use:
+
+  ```powershell
+  docker run --name nutrascore-postgres `
+    -e POSTGRES_DB=nutrascore `
+    -e POSTGRES_USER=nutrascore `
+    -e POSTGRES_PASSWORD=nutrascore_dev `
+    -p 5432:5432 `
+    -d postgres:17
 ```
 
-Install Python dependencies for the CSV tools and tests:
+  ## Environment configuration
 
-```sh
-python -m pip install -r requirements-test.txt
+  Copy the example environment files before starting the app:
+
+  ```powershell
+  Copy-Item .\apps\api\.env.example .\apps\api\.env
+  Copy-Item .\apps\web\.env.example .\apps\web\.env
+  ```
+
+  Set the values in `apps/api/.env`:
+
+  ```env
+  DATABASE_URL=postgresql://nutrascore:nutrascore_dev@localhost:5432/nutrascore
+  PORT=3000
+  WEB_ORIGIN=http://localhost:5173
+  UPLOAD_DIR=./uploads
+  ```
+
+  Set the values in `apps/web/.env`:
+
+  ```env
+  PUBLIC_API_URL=http://localhost:3000
+  ```
+
+  The API loads `DATABASE_URL` through `dotenv` and the importer reads the same value from `apps/api/.env`.
+
+  ## PostgreSQL database setup
+
+  Create the local database and role if you are not using Docker:
+
+  ```sql
+  CREATE ROLE nutrascore LOGIN PASSWORD 'nutrascore_dev';
+  CREATE DATABASE nutrascore OWNER nutrascore;
+  ```
+
+  The project expects a PostgreSQL database named `nutrascore` and a user named `nutrascore` with access to it.
+
+  ## Database migration instructions
+
+  Run the schema migrations from the repository root:
+
+  ```powershell
+  pnpm db:migrate
+  ```
+
+  This command executes `drizzle-kit migrate` for `apps/api` using `DATABASE_URL`.
+
+  ## Product dataset import instructions
+
+  The current importer reads the cleaned CSV at `data/raw/packaged_foods_india_cleaned.csv` and the tracked processed copy at `data/processed/packaged_foods_india_cleaned.csv`.
+
+  Before applying the CSV to PostgreSQL, inspect the imported file and confirm the source basis for the nutrition values. The script does not infer the basis from the dataset and aborts an apply without a verified value.
+
+  Dry run:
+
+  ```powershell
+  python .\script\load_postgres.py
+  ```
+
+  Apply with a verified basis:
+
+  ```powershell
+  python .\script\load_postgres.py --apply --nutrition-basis per_serving
 ```
 
-## Local PostgreSQL and environment
+  Use `per_100g` instead if the source documentation confirms that basis for the CSV. The script is intentionally safe by default: it validates the schema, creates logical CSV exports, and writes CSV-owned data in one transaction without recreating the database or running migrations.
 
-Start your local PostgreSQL service and create a database named `nutrascore`
-owned by the role you will use in `DATABASE_URL`. For example, from `psql`
-connected as a PostgreSQL administrator:
+  The importer is safe to run multiple times in dry-run mode. An `--apply` run is meant to be deliberate and should only be used after you have verified the dataset and the nutrition basis.
 
-```sql
-CREATE ROLE nutrascore LOGIN PASSWORD 'choose-a-local-password';
-CREATE DATABASE nutrascore OWNER nutrascore;
-```
+  ## Starting the API and frontend
 
-Copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL` to the
-local database. The API also uses `PORT`, `WEB_ORIGIN`, and `UPLOAD_DIR`.
-Copy `apps/web/.env.example` to `apps/web/.env`; set `PUBLIC_API_URL` if the API
-is not listening at `http://localhost:3000`.
+  Open two terminals in the repository root and start each service separately:
 
-Apply the database migrations from the repository root:
+  ```powershell
+  # Terminal 1
+  pnpm dev:api
+  ```
 
-```sh
-pnpm db:migrate
-```
+  ```powershell
+  # Terminal 2
+  pnpm dev:web
+  ```
 
-The raw and cleaned CSV files are maintained in `data/raw/`. Recreate the
-cleaned file from the source file when needed, then validate the data and review the local-only dry run:
+  The API listens on `http://localhost:3000` and the frontend on `http://localhost:5173`.
 
-```sh
-python script/ingredient_cleaner.py
-python script/validate_dataset.py
-python script/load_postgres.py
-```
+  ## How to run checks and tests
 
-The importer reads `data/raw/packaged_foods_india_cleaned.csv`. The CSV does
-not declare whether nutrition values are per serving or per 100 g, so verify
-the source basis before applying changes and state it explicitly:
+  From the repository root:
 
-```sh
-# Use only the basis confirmed by the source documentation.
-python script/load_postgres.py --apply --nutrition-basis per_serving
-```
+  ```powershell
+  pnpm check
+  pnpm test:unit
+  pnpm test:integration
+  pnpm test
+  pnpm build
+  ```
 
-Replace `per_serving` with `per_100g` if that is what the source documents; do
-not infer either basis from this CSV alone. The apply mode
-validates the existing schema, creates logical CSV exports of affected tables,
-and updates CSV-owned product, nutrition, and category data in a transaction.
-Missing CSV values clear their corresponding CSV-owned fields; product labels,
-images, and other fields absent from the CSV are preserved. CSV exports are
-not complete PostgreSQL backups or an automatic restore mechanism. The
-importer does not recreate the database or run migrations.
+  `pnpm test:integration` requires `DATABASE_URL` to point at a running PostgreSQL instance. Unit tests do not require a live database.
 
-## Data and image maintenance
+  ## Common setup errors and their solutions
 
-- `script/ingredient_cleaner.py` reproducibly generates the cleaned CSV from
-  the source CSV; the existing local cleaned file can be used directly when it
-  is already current.
-- `script/load_postgres.py` defaults to a local-only dry run. Use `--apply`
-  only after reviewing the data and supplying a verified nutrition basis.
-- `script/validate_dataset.py` checks CSV structure and data quality before an
-  import. Review its duplicate and suspicious-row reports manually; flagged
-  rows are not automatically corrected or excluded.
-- `script/sync_product_csv.py` is an occasional migration helper for matching
-  CSV rows to existing product IDs. It is a dry run by default; inspect its
-  report before using `--apply` to update existing database rows.
-- `script/enrich_product_images_browser.py` searches for products with no
-  usable image. It is a dry run by default; `--write` saves an image and source
-  for moderator review.
-- `script/replace_product_images_google.py` is an occasional image-repair
-  utility for products that already have an image. It is a dry run by default
-  and writes replacements through the authenticated moderator API, marking them
-  for review.
+  - `DATABASE_URL is missing` — create `apps/api/.env` from `.env.example` and set `DATABASE_URL` before running migrations or imports.
+  - `connection refused` to PostgreSQL — start the PostgreSQL service or Docker container and confirm the port and credentials match the `.env` file.
+  - `pnpm: command not found` — enable Corepack and activate pnpm 10 with `corepack enable` and `corepack prepare pnpm@10 --activate`.
+  - `Python package import errors` — run `python -m pip install -r requirements-test.txt`.
+  - `CSV not found` — verify the cleaned file exists at `data/raw/packaged_foods_india_cleaned.csv` and that you are running the script from the repository root.
 
-Maintenance reports are written under `data/reports/`; importer backups are
-kept under `data/backups/`. These outputs and the source data are local assets,
-not generated as part of normal application builds.
+  ## Dataset provenance and licensing
 
-## Run the application
+  The working product dataset is kept in `data/raw/packaged_foods_india_cleaned.csv` and the tracked processed copy is in `data/processed/packaged_foods_india_cleaned.csv`.
 
-Start the API and web application in separate terminals:
+  The repository does not include a separate dataset license file, and the CSV itself contains source metadata fields such as `Source_of_Data`, `Collection_Date`, and `Collected_By`. Verify the ownership and redistributions terms of the original data source before sharing the dataset outside this project.
 
-```sh
-pnpm dev:api
-pnpm dev:web
-```
+  ## More detailed documentation
 
-The web application is available at `http://localhost:5173`; the API defaults
-to `http://localhost:3000`.
+  See [docs](./docs) and the software design notes in [docs/software-design/README.md](./docs/software-design/README.md) for the API contract, schema details, and project design.
 
-To promote an existing registered account to moderator:
+  ## Maintainer note
 
-```sh
-pnpm --filter api admin:promote-moderator -- moderator@example.com
-```
-
-Moderators can manage product details, product images, and image review status
-from the moderator dashboard.
-
-## Checks and tests
-
-```sh
-pnpm check
-pnpm test:unit
-pnpm test:integration
-pnpm test
-pnpm build
-```
-
-The integration check needs PostgreSQL configured by `DATABASE_URL`. Unit
-tests do not require external services. There are no browser end-to-end tests
-currently, so the unit and integration commands do not install browser
-dependencies.
+  This repository is intentionally configured for local development. It does not include a production deployment configuration, environment secrets management, or cloud hosting setup.
