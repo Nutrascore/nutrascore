@@ -1,23 +1,39 @@
 # Data Flow Diagram — Level 0 context
 
+The diagram separates live application traffic from the one-time or
+administrator-run CSV import. The importer is a development/administrative
+utility, not an application service.
+
 ```mermaid
 flowchart LR
-    G[Visitor]
+    V[Anonymous visitor]
     U[Registered user]
     M[Moderator]
-    X[Image host]
-    S(["NutraScore"])
+    A[Developer or data administrator]
+    CSV[(Cleaned CSV<br/>data/raw/packaged_foods_india_cleaned.csv)]
+    APP(["NutraScore web application and API"])
+    IMPORT(["CSV validation and import<br/>script/load_postgres.py"])
+    DB[(PostgreSQL)]
+    HOST[Moderator-supplied image URL host]
 
-    G -->|product, category, search, and comparison requests| S
-    S -->|product and nutrition information| G
-    U -->|account and session requests| S
-    S -->|account status and session cookie| U
-    M -->|authenticated product and image management| S
-    S -->|product lists, validation results, and operation status| M
-    S -->|image URL validation request| X
-    X -->|image response| S
+    V -->|search, category, detail, comparison requests| APP
+    APP -->|product and nutrition results| V
+    U -->|registration, login, logout, profile requests| APP
+    APP -->|account status and session cookies| U
+    M -->|authenticated product and image management| APP
+    APP -->|product records and operation results| M
+    APP -->|outbound HTTPS HEAD validation| HOST
+    HOST -->|HTTP status and content type| APP
+
+    A -->|run import; select verified nutrition basis| IMPORT
+    CSV -->|cleaned product, category, and nutrition rows| IMPORT
+    IMPORT -->|upsert Products, Nutrition, categories, and links| DB
+    APP <-->|query and update application records| DB
 ```
 
-Visitors browse products, categories, nutrition, and comparisons. Registered
-users can access account functions. Moderators can manage product details and
-images. External image hosts participate when an image URL is validated.
+The web application uses the Fastify API to access PostgreSQL. The CSV
+importer independently validates and writes the cleaned file; it does not
+start the app, apply migrations, or replace the database.
+
+The API validates moderator-supplied image URLs with an HTTPS `HEAD` request.
+This is not an automated image discovery or enrichment flow.
