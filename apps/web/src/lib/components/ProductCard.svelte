@@ -19,13 +19,6 @@
 	let isSelected = $derived($compareStore.includes(product.id));
 	let imageFailed = $state(false);
 	let actionError = $state('');
-	let signedIn = $state(false);
-
-	$effect(() => {
-		getCurrentUser()
-			.then((user) => (signedIn = Boolean(user)))
-			.catch(() => (signedIn = false));
-	});
 
 	function addToComparison(event: MouseEvent) {
 		event.stopPropagation();

@@ -1,15 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { getCurrentUser, getProduct, type Product, type AuthUser } from '$lib/api';
+	import { getProduct, type Product } from '$lib/api';
 	import { compareStore } from '$lib/stores/compareStore';
 	import { formatNutritionValue } from '$lib/utils/formatNutrition';
 
 	let product = $state<Product | null>(null);
 	let loading = $state(true);
 	let error = $state('');
-	let user = $state<AuthUser | null>(null);
 	let actionError = $state('');
 
 	let productId = $derived(page.params.id);
@@ -41,9 +39,6 @@
 		void productId;
 
 		loadProduct();
-		getCurrentUser()
-			.then((value) => (user = value))
-			.catch(() => (user = null));
 	});
 
 	function addToCompare() {

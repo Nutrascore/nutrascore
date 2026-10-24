@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import {
 		getModeratorProducts,
 		getModeratorProduct,
@@ -103,7 +104,7 @@
 	}
 
 	function syncUrl() {
-		const params = new URLSearchParams();
+		const params = new SvelteURLSearchParams();
 		if (appliedQuery) params.set('q', appliedQuery);
 		if (appliedStatus) params.set('status', appliedStatus);
 		if (page !== 1) params.set('page', String(page));
@@ -385,7 +386,7 @@
 				<label
 					>Category<select bind:value={createCategoryId}>
 						<option value="">Not specified</option>
-						{#each categoryOptions as category}
+						{#each categoryOptions as category (category.id)}
 							<option value={category.id}>{category.name}</option>
 						{/each}
 					</select></label
@@ -400,7 +401,7 @@
 			</fieldset>
 			<fieldset class="editor-section nutrition-section">
 				<legend>Nutrition per 100g / 100ml</legend>
-				{#each [['kcalPer100g', 'Energy (kcal)'], ['proteinG', 'Protein (g)'], ['carbohydratesG', 'Carbohydrates (g)'], ['sugarsG', 'Sugars (g)'], ['fatG', 'Total fat (g)'], ['saturatedFatG', 'Saturated fat (g)'], ['transFatG', 'Trans fat (g)'], ['fibreG', 'Dietary fibre (g)'], ['sodiumMg', 'Sodium (mg)'], ['saltG', 'Salt (g)']] as field}
+				{#each [['kcalPer100g', 'Energy (kcal)'], ['proteinG', 'Protein (g)'], ['carbohydratesG', 'Carbohydrates (g)'], ['sugarsG', 'Sugars (g)'], ['fatG', 'Total fat (g)'], ['saturatedFatG', 'Saturated fat (g)'], ['transFatG', 'Trans fat (g)'], ['fibreG', 'Dietary fibre (g)'], ['sodiumMg', 'Sodium (mg)'], ['saltG', 'Salt (g)']] as field (field[0])}
 					<label
 						>{field[1]}<input
 							type="number"
@@ -485,7 +486,7 @@
 							</fieldset>
 							<fieldset class="editor-section nutrition-section" disabled={detailsLoading}>
 								<legend>Nutrition per 100g / 100ml</legend>
-								{#each [['kcalPer100g', 'Energy (kcal)'], ['proteinG', 'Protein (g)'], ['carbohydratesG', 'Carbohydrates (g)'], ['sugarsG', 'Sugars (g)'], ['fatG', 'Total fat (g)'], ['saturatedFatG', 'Saturated fat (g)'], ['transFatG', 'Trans fat (g)'], ['fibreG', 'Dietary fibre (g)'], ['sodiumMg', 'Sodium (mg)'], ['saltG', 'Salt (g)']] as field}
+								{#each [['kcalPer100g', 'Energy (kcal)'], ['proteinG', 'Protein (g)'], ['carbohydratesG', 'Carbohydrates (g)'], ['sugarsG', 'Sugars (g)'], ['fatG', 'Total fat (g)'], ['saturatedFatG', 'Saturated fat (g)'], ['transFatG', 'Trans fat (g)'], ['fibreG', 'Dietary fibre (g)'], ['sodiumMg', 'Sodium (mg)'], ['saltG', 'Salt (g)']] as field (field[0])}
 									<label
 										>{field[1]}<input
 											type="number"

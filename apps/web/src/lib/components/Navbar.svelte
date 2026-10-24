@@ -6,7 +6,7 @@
 	import { getCurrentUser, logout, type AuthUser } from '$lib/api';
 
 	let query = $state('');
-	let scannerOpen = $state(false);
+
 	let user = $state<AuthUser | null>(null);
 
 	$effect(() => {
@@ -144,14 +144,6 @@
 
 	.nav-search input::placeholder {
 		color: #888;
-	}
-
-	.scan-button {
-		padding: 10px 12px;
-		border: none;
-		border-radius: 12px;
-		cursor: pointer;
-		white-space: nowrap;
 	}
 
 	.nav-links {

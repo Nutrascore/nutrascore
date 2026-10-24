@@ -15,6 +15,10 @@
 	let previousIds = '';
 
 	function addProduct() {
+		if (selectedProductIds.length >= 2) {
+			showComparisonWarning();
+			return;
+		}
 		goto(resolve('/discover'));
 	}
 
@@ -68,7 +72,7 @@
 		};
 	}
 
-	let warningMessage = '';
+	let warningMessage = $state('');
 	let warningTimeout: ReturnType<typeof setTimeout>;
 
 	function showComparisonWarning() {
