@@ -1,17 +1,15 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import type { FastifyPluginAsync } from 'fastify';
 import { pool } from '../db/pool.js';
 import { requireCsrf, requireModerator } from '../auth.js';
 import { getModeratorTotalPages, parseModeratorPaginationValue } from './moderator-pagination.js';
 import {
 	moderatorNutritionFields,
-	moderatorServingUnits,
 	normalizeProductMatch,
 	parseModeratorNutrition,
+	parseModeratorPrice,
 } from './moderator-product-validation.js';
 
 interface ProductParams { id: string }
@@ -21,6 +19,7 @@ interface ProductDetailsBody {
 	name?: string;
 	brand?: string | null;
 	ingredients?: string | null;
+	priceInr?: string | number | null;
 	nutrition?: Record<string, unknown>;
 }
 interface ProductCreateBody extends ProductDetailsBody {
@@ -38,10 +37,11 @@ const nutritionColumns = [
 	['proteinG', 'protein_g'],
 	['sodiumMg', 'sodium_mg'],
 	['saltG', 'salt_g'],
+	['cholesterolMg', 'cholesterol_mg'],
+	['calciumMg', 'calcium_mg'],
+	['ironMg', 'iron_mg'],
 	['servingSize', 'serving_size'],
 ] as const;
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const uploadDirectory = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'));
 
 function isPrivateAddress(address: string): boolean {
 	const value = address.toLowerCase();
@@ -62,51 +62,6 @@ async function assertPublicImageUrl(value: string): Promise<void> {
 	if (!response.ok || !response.headers.get('content-type')?.toLowerCase().startsWith('image/')) {
 		throw new Error('The image URL did not return a reachable image.');
 	}
-}
-
-function imageExtension(buffer: Buffer, contentType: string): string | null {
-		if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
-		if (
-			buffer.length >= 8 &&
-			buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-		) return 'png';
-		if (
-			buffer.length >= 12 &&
-			buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-			buffer.subarray(8, 12).toString('ascii') === 'WEBP'
-		) return 'webp';
-		if (contentType === 'image/jpeg' || contentType === 'image/png' || contentType === 'image/webp') {
-			return null;
-		}
-		return null;
-}
-
-async function readImageUpload(request: FastifyRequest) {
-		const parts = request.parts();
-		let image: { buffer: Buffer; contentType: string; filename: string } | null = null;
-		const fields: Record<string, string> = {};
-		for await (const part of parts) {
-			if (part.type === 'file') {
-				if (part.fieldname !== 'image') {
-					await part.toBuffer();
-					continue;
-				}
-				const buffer = await part.toBuffer();
-				image = { buffer, contentType: part.mimetype.toLowerCase(), filename: part.filename };
-			} else {
-				fields[part.fieldname] = String(part.value);
-			}
-		}
-		if (!image) throw new Error('Select a JPEG, PNG, or WebP image to upload.');
-		if (image.buffer.length > MAX_UPLOAD_BYTES) throw new Error('Image uploads must be 5 MB or smaller.');
-		const extension = imageExtension(image.buffer, image.contentType);
-		if (!extension) throw new Error('Only JPEG, PNG, and WebP images are supported.');
-		return { ...image, extension, fields };
-}
-
-function uploadUrl(filename: string): string {
-		const origin = (process.env.API_PUBLIC_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-		return `${origin}/uploads/${filename}`;
 }
 
 const moderatorRoutes: FastifyPluginAsync = async (app) => {
@@ -164,6 +119,16 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 		const brand = body.brand == null ? null : String(body.brand).trim() || null;
 		if (brand && brand.length > 500) return reply.status(400).send({ error: 'INVALID_PRODUCT', field: 'brand', message: 'Brand is too long.' });
 		const ingredients = body.ingredients == null ? null : String(body.ingredients);
+		const parsedPrice = body.priceInr === undefined
+			? { priceInr: null }
+			: parseModeratorPrice(body.priceInr);
+		if ('error' in parsedPrice && parsedPrice.error) {
+			return reply.status(400).send({
+				error: 'INVALID_PRICE',
+				field: 'priceInr',
+				message: parsedPrice.error,
+			});
+		}
 		const categoryId = body.categoryId == null ? null : String(body.categoryId).trim() || null;
 		if (categoryId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(categoryId)) {
 			return reply.status(400).send({ error: 'INVALID_CATEGORY', field: 'categoryId', message: 'Choose a valid category.' });
@@ -219,20 +184,26 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				}
 			}
 			const productId = randomUUID();
-			await client.query(
-				`INSERT INTO "Products" (id, name, brand, ingredients, created_at, updated_at)
-				 VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-				[productId, name, brand, ingredients],
+			const insertedProduct = await client.query(
+				`INSERT INTO "Products" (id, name, brand, ingredients, price_inr, created_at, updated_at)
+				 VALUES ($1, $2, $3, $4, $5::numeric, NOW(), NOW())
+				 RETURNING price_inr`,
+				[productId, name, brand, ingredients, parsedPrice.priceInr],
 			);
 			await client.query(
 				`INSERT INTO "Nutrition" (id, product_id, kcal_per_100g, fat_g, saturated_fat_g, trans_fat_g,
-					carbohydrates_g, sugars_g, fibre_g, protein_g, sodium_mg, salt_g, serving_size, serving_unit)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+					carbohydrates_g, sugars_g, fibre_g, protein_g, sodium_mg, salt_g, cholesterol_mg, calcium_mg,
+					iron_mg, serving_size, serving_unit, vitamins, nutrition_basis)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
 				[
 					randomUUID(),
 					productId,
 					...nutritionColumns.map(([jsonName]) => parsedNutrition.values[jsonName]),
 					parsedNutrition.servingUnit,
+					parsedNutrition.vitamins,
+					parsedNutrition.basis === 'perServing'
+						? 'per_serving'
+						: 'per_100g',
 				],
 			);
 			if (categoryId) {
@@ -259,7 +230,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				);
 			}
 			await client.query('COMMIT');
-			return { ok: true, id: productId, name, imageUrl };
+			return { ok: true, id: productId, name, priceInr: insertedProduct.rows[0].price_inr, imageUrl };
 		} catch (error) {
 			await client.query('ROLLBACK');
 			throw error;
@@ -271,9 +242,10 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 	app.get<{ Params: ProductParams }>('/products/:id', async (request, reply) => {
 		if (!(await requireModerator(request, reply))) return;
 		const result = await pool.query(
-			`SELECT p.id, p.name, p.brand, p.ingredients, image.image_url, source.source_url, source.source_name, review.review_status,
+			`SELECT p.id, p.name, p.brand, p.ingredients, p.price_inr, image.image_url, source.source_url, source.source_name, review.review_status,
 				n.kcal_per_100g, n.fat_g, n.saturated_fat_g, n.trans_fat_g, n.carbohydrates_g,
-				n.sugars_g, n.fibre_g, n.protein_g, n.sodium_mg, n.salt_g, n.serving_size, n.serving_unit
+				n.sugars_g, n.fibre_g, n.protein_g, n.sodium_mg, n.salt_g, n.cholesterol_mg,
+				n.calcium_mg, n.iron_mg, n.vitamins, n.serving_size, n.serving_unit, n.nutrition_basis
 			 FROM "Products" p
 			 LEFT JOIN LATERAL (SELECT image_url FROM "ProductImages" WHERE product_id = p.id ORDER BY is_primary DESC, id LIMIT 1) image ON TRUE
 			 LEFT JOIN product_image_sources source ON source.product_id = p.id
@@ -289,6 +261,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 			name: product.name,
 			brand: product.brand,
 			ingredients: product.ingredients,
+			priceInr: product.price_inr,
 			image_url: product.image_url,
 			source_url: product.source_url,
 			source_name: product.source_name,
@@ -304,8 +277,13 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				proteinG: product.protein_g,
 				sodiumMg: product.sodium_mg,
 				saltG: product.salt_g,
+				cholesterolMg: product.cholesterol_mg,
+				calciumMg: product.calcium_mg,
+				ironMg: product.iron_mg,
+				vitamins: product.vitamins,
 				servingSize: product.serving_size,
 				servingUnit: product.serving_unit,
+				basis: product.nutrition_basis === 'per_serving' ? 'perServing' : 'per100g',
 			},
 		};
 	});
@@ -319,22 +297,20 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 		const brand = body.brand == null ? null : String(body.brand).trim() || null;
 		const ingredients = body.ingredients == null ? null : String(body.ingredients);
 		const nutrition = body.nutrition ?? {};
-		const values: Record<string, string | null> = {};
-		for (const [jsonName] of nutritionColumns) {
-			const value = nutrition[jsonName];
-			if (value === null || value === undefined || value === '') {
-				values[jsonName] = null;
-				continue;
-			}
-			const number = typeof value === 'number' ? value : Number(value);
-			if (!Number.isFinite(number) || number < 0 || number > 1000000) {
-				return reply.status(400).send({ error: 'INVALID_NUTRITION', message: `${jsonName} must be a non-negative number.` });
-			}
-			values[jsonName] = String(number);
+		const parsedPrice = body.priceInr === undefined
+			? null
+			: parseModeratorPrice(body.priceInr);
+		if (parsedPrice?.error) {
+			return reply.status(400).send({
+				error: 'INVALID_PRICE',
+				field: 'priceInr',
+				message: parsedPrice.error,
+			});
 		}
-		const servingUnit = nutrition.servingUnit == null ? null : String(nutrition.servingUnit).trim().toLowerCase() || null;
-		if (servingUnit && !moderatorServingUnits.includes(servingUnit as (typeof moderatorServingUnits)[number])) {
-			return reply.status(400).send({ error: 'INVALID_SERVING_UNIT', message: 'Serving unit must be g, ml, oz, piece, or serving.' });
+		const parsedNutrition = parseModeratorNutrition(nutrition);
+		if (parsedNutrition.error) {
+			const field = moderatorNutritionFields.find((key) => parsedNutrition.error?.startsWith(key)) ?? 'nutrition';
+			return reply.status(400).send({ error: 'INVALID_NUTRITION', field, message: parsedNutrition.error });
 		}
 		const client = await pool.connect();
 		try {
@@ -345,19 +321,36 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
 			}
 			await client.query(
-				'UPDATE "Products" SET name = $1, brand = $2, ingredients = $3, updated_at = NOW() WHERE id = $4',
-				[name, brand, ingredients, request.params.id],
+				`UPDATE "Products"
+				 SET name = $1, brand = $2, ingredients = $3,
+				     price_inr = CASE WHEN $4 THEN $5::numeric ELSE price_inr END,
+				     updated_at = NOW()
+				 WHERE id = $6`,
+				[name, brand, ingredients, body.priceInr !== undefined, parsedPrice?.priceInr ?? null, request.params.id],
 			);
 			await client.query(
 				`INSERT INTO "Nutrition" (id, product_id, kcal_per_100g, fat_g, saturated_fat_g, trans_fat_g,
-					carbohydrates_g, sugars_g, fibre_g, protein_g, sodium_mg, salt_g, serving_size, serving_unit)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+					carbohydrates_g, sugars_g, fibre_g, protein_g, sodium_mg, salt_g, cholesterol_mg, calcium_mg,
+					iron_mg, serving_size, serving_unit, vitamins, nutrition_basis)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 				 ON CONFLICT (product_id) DO UPDATE SET kcal_per_100g = EXCLUDED.kcal_per_100g,
 				 fat_g = EXCLUDED.fat_g, saturated_fat_g = EXCLUDED.saturated_fat_g, trans_fat_g = EXCLUDED.trans_fat_g,
 				 carbohydrates_g = EXCLUDED.carbohydrates_g, sugars_g = EXCLUDED.sugars_g, fibre_g = EXCLUDED.fibre_g,
 				 protein_g = EXCLUDED.protein_g, sodium_mg = EXCLUDED.sodium_mg, salt_g = EXCLUDED.salt_g,
-				 serving_size = EXCLUDED.serving_size, serving_unit = EXCLUDED.serving_unit`,
-				[randomUUID(), request.params.id, ...nutritionColumns.map(([jsonName]) => values[jsonName]), servingUnit],
+				 cholesterol_mg = EXCLUDED.cholesterol_mg, calcium_mg = EXCLUDED.calcium_mg,
+				 iron_mg = EXCLUDED.iron_mg, vitamins = EXCLUDED.vitamins,
+				 serving_size = EXCLUDED.serving_size, serving_unit = EXCLUDED.serving_unit,
+				 nutrition_basis = EXCLUDED.nutrition_basis`,
+				[
+					randomUUID(),
+					request.params.id,
+					...nutritionColumns.map(([jsonName]) => parsedNutrition.values[jsonName]),
+					parsedNutrition.servingUnit,
+					parsedNutrition.vitamins,
+					parsedNutrition.basis === 'perServing'
+						? 'per_serving'
+						: 'per_100g',
+				],
 			);
 			await client.query('COMMIT');
 			return { ok: true };
@@ -384,12 +377,9 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 			}
 
 			const productId = request.params.id;
-			await client.query('DELETE FROM product_favourites WHERE product_id = $1', [productId]);
 			await client.query('DELETE FROM product_categories WHERE product_id = $1', [productId]);
-			await client.query('DELETE FROM product_allergens WHERE product_id = $1', [productId]);
 			await client.query('DELETE FROM product_image_reviews WHERE product_id = $1', [productId]);
 			await client.query('DELETE FROM product_image_sources WHERE product_id = $1', [productId]);
-			await client.query('DELETE FROM product_barcode_sources WHERE product_id = $1', [productId]);
 			await client.query('DELETE FROM "ProductImages" WHERE product_id = $1', [productId]);
 			await client.query('DELETE FROM "Nutrition" WHERE product_id = $1', [productId]);
 			await client.query('DELETE FROM "Products" WHERE id = $1', [productId]);
@@ -470,77 +460,6 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 			await client.query('ROLLBACK');
 			throw error;
 		} finally { client.release(); }
-	});
-
-	app.put<{ Params: ProductParams }>('/products/:id/image-upload', async (request, reply) => {
-		if (!(await requireModerator(request, reply)) || !requireCsrf(request, reply)) return;
-		let upload: Awaited<ReturnType<typeof readImageUpload>>;
-		try {
-			upload = await readImageUpload(request);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Invalid image upload.';
-			request.log.warn({ error: message }, 'Rejected moderator image upload');
-			return reply.status(400).send({ error: 'INVALID_IMAGE_UPLOAD', message });
-		}
-
-		await mkdir(uploadDirectory, { recursive: true });
-		const filename = `${randomUUID()}.${upload.extension}`;
-		const filePath = path.join(uploadDirectory, filename);
-		const imageUrl = uploadUrl(filename);
-		await writeFile(filePath, upload.buffer, { flag: 'wx' });
-
-		const sourceUrl = upload.fields.sourceUrl?.trim() || imageUrl;
-		const sourceName = upload.fields.sourceName?.trim() || 'Moderator uploaded image';
-		const reviewStatus = upload.fields.reviewStatus === 'verified' ? 'verified' : 'needs_review';
-		try {
-			new URL(sourceUrl);
-		} catch {
-			await unlink(filePath).catch(() => undefined);
-			return reply.status(400).send({ error: 'INVALID_SOURCE_URL', message: 'Source URL must be valid.' });
-		}
-		try {
-			const client = await pool.connect();
-			try {
-				await client.query('BEGIN');
-				const product = await client.query('SELECT 1 FROM "Products" WHERE id = $1', [request.params.id]);
-				if (!product.rowCount) {
-					throw new Error('PRODUCT_NOT_FOUND');
-				}
-				await client.query('UPDATE "ProductImages" SET is_primary = FALSE WHERE product_id = $1', [request.params.id]);
-				await client.query(
-					`INSERT INTO "ProductImages" (id, product_id, image_url, image_type, is_primary)
-					 VALUES ($1, $2, $3, 'product', TRUE)`,
-					[randomUUID(), request.params.id, imageUrl],
-				);
-				await client.query(
-					`INSERT INTO product_image_sources (product_id, source_name, source_url, match_confidence, license_metadata, verified_at)
-					 VALUES ($1, $2, $3, 1, 'Moderator uploaded; identity requires human review.', NOW())
-					 ON CONFLICT (product_id) DO UPDATE SET source_name = EXCLUDED.source_name, source_url = EXCLUDED.source_url,
-					 match_confidence = EXCLUDED.match_confidence, license_metadata = EXCLUDED.license_metadata,
-					 verified_at = EXCLUDED.verified_at`,
-					[request.params.id, sourceName, sourceUrl],
-				);
-				await client.query(
-					`INSERT INTO product_image_reviews (product_id, review_status, updated_at)
-					 VALUES ($1, $2, NOW())
-					 ON CONFLICT (product_id) DO UPDATE SET review_status = EXCLUDED.review_status, updated_at = NOW()`,
-					[request.params.id, reviewStatus],
-				);
-				await client.query('COMMIT');
-				return { ok: true, imageUrl };
-			} catch (error) {
-				await client.query('ROLLBACK');
-				throw error;
-			} finally {
-				client.release();
-			}
-		} catch (error) {
-			await unlink(filePath).catch(() => undefined);
-			if (error instanceof Error && error.message === 'PRODUCT_NOT_FOUND') {
-				return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
-			}
-			throw error;
-		}
 	});
 
 	app.delete<{ Params: ProductParams }>('/products/:id/image', async (request, reply) => {

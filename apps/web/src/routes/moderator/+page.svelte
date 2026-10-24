@@ -8,32 +8,48 @@
 		createModeratorProduct,
 		deleteModeratorProduct,
 		removeModeratorImage,
-		uploadModeratorImage,
 		updateModeratorImage,
 		updateModeratorProduct,
 		type Nutrition,
 		type ModeratorProduct
 	} from '$lib/api';
+	import { getCategoryDisplayOptions } from '$lib/categoryDisplay';
 	import { getPageStateAfterDeletion, getVisiblePages } from '$lib/pagination';
+	import CategorySelect from '$lib/components/CategorySelect.svelte';
+	import NutritionEditor from '$lib/components/NutritionEditor.svelte';
 
 	const pageSize = 20;
-	function blankNutrition(): Nutrition {
-		return {
-			kcalPer100g: null,
-			fatG: null,
-			saturatedFatG: null,
-			transFatG: null,
-			carbohydratesG: null,
-			sugarsG: null,
-			fibreG: null,
-			proteinG: null,
-			sodiumMg: null,
-			saltG: null,
-			servingSize: null,
-			servingUnit: null
-		};
+	const emptyNutrition: Nutrition = {
+		basis: 'per100g',
+		kcalPer100g: null,
+		fatG: null,
+		saturatedFatG: null,
+		transFatG: null,
+		carbohydratesG: null,
+		sugarsG: null,
+		fibreG: null,
+		proteinG: null,
+		sodiumMg: null,
+		saltG: null,
+		cholesterolMg: null,
+		calciumMg: null,
+		ironMg: null,
+		vitamins: null,
+		servingSize: null,
+		servingUnit: null
+	};
+	function blankNutrition(values?: Partial<Nutrition> | null): Nutrition {
+		return { ...emptyNutrition, ...values };
+	}
+
+	function isValidPrice(value: string): boolean {
+		return (
+			!value ||
+			(/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value)))
+		);
 	}
 	let products = $state<ModeratorProduct[]>([]);
+	let imageErrors = $state<Record<string, string>>({});
 	let query = $state('');
 	let status = $state('');
 	let appliedQuery = $state('');
@@ -50,22 +66,23 @@
 	let editing = $state<string | null>(null);
 	let imageUrl = $state('');
 	let originalImageUrl = $state('');
-	let sourceUrl = $state('');
 	let name = $state('');
 	let brand = $state('');
+	let priceInr = $state('');
+	let priceError = $state('');
 	let ingredients = $state('');
 	let nutrition = $state<Nutrition>(blankNutrition());
 	let showCreate = $state(false);
 	let createName = $state('');
 	let createBrand = $state('');
+	let createPriceInr = $state('');
+	let createPriceError = $state('');
 	let createCategoryId = $state('');
 	let createIngredients = $state('');
 	let createImageUrl = $state('');
 	let createNutrition = $state<Nutrition>(blankNutrition());
-	let categoryOptions = $state<{ id: string; name: string }[]>([]);
+	let categoryOptions = $state<{ id: string; name: string; label: string }[]>([]);
 	let detailsLoading = $state(false);
-	let selectedFile = $state<File | null>(null);
-	let previewUrl = $state('');
 	let jumpValue = $state('');
 	let ready = $state(false);
 	let requestVersion = 0;
@@ -96,7 +113,7 @@
 	async function loadCategories() {
 		try {
 			const result = await getCategories();
-			categoryOptions = result.categories.map(({ id, name }) => ({ id, name }));
+			categoryOptions = getCategoryDisplayOptions(result.categories);
 		} catch (err) {
 			categoryOptions = [];
 			error = err instanceof Error ? err.message : 'Unable to load categories.';
@@ -144,6 +161,8 @@
 		showCreate = true;
 		createName = '';
 		createBrand = '';
+		createPriceInr = '';
+		createPriceError = '';
 		createCategoryId = '';
 		createIngredients = '';
 		createImageUrl = '';
@@ -163,9 +182,15 @@
 			error = 'Product name is required.';
 			return;
 		}
+		const normalizedPrice = createPriceInr.trim();
+		if (!isValidPrice(normalizedPrice)) {
+			createPriceError = 'Enter a valid non-negative price or leave the field empty.';
+			return;
+		}
 		const scrollPosition = captureScrollPosition();
 		createSaving = true;
 		error = '';
+		createPriceError = '';
 		message = '';
 		try {
 			const created = await createModeratorProduct({
@@ -173,6 +198,7 @@
 				brand: createBrand.trim() || null,
 				categoryId: createCategoryId || null,
 				ingredients: createIngredients || null,
+				priceInr: normalizedPrice || null,
 				imageUrl: createImageUrl.trim() || null,
 				nutrition: createNutrition
 			});
@@ -191,8 +217,8 @@
 		editing = product.id;
 		imageUrl = product.image_url ?? '';
 		originalImageUrl = imageUrl;
-		sourceUrl = product.source_url ?? '';
-		clearSelectedFile();
+		priceInr = '';
+		priceError = '';
 		message = '';
 		error = '';
 		detailsLoading = true;
@@ -200,21 +226,9 @@
 			const details = await getModeratorProduct(product.id);
 			name = details.name;
 			brand = details.brand ?? '';
+			priceInr = details.priceInr ?? '';
 			ingredients = details.ingredients ?? '';
-			nutrition = {
-				kcalPer100g: details.nutrition?.kcalPer100g ?? null,
-				fatG: details.nutrition?.fatG ?? null,
-				saturatedFatG: details.nutrition?.saturatedFatG ?? null,
-				transFatG: details.nutrition?.transFatG ?? null,
-				carbohydratesG: details.nutrition?.carbohydratesG ?? null,
-				sugarsG: details.nutrition?.sugarsG ?? null,
-				fibreG: details.nutrition?.fibreG ?? null,
-				proteinG: details.nutrition?.proteinG ?? null,
-				sodiumMg: details.nutrition?.sodiumMg ?? null,
-				saltG: details.nutrition?.saltG ?? null,
-				servingSize: details.nutrition?.servingSize ?? null,
-				servingUnit: details.nutrition?.servingUnit ?? null
-			};
+			nutrition = blankNutrition(details.nutrition);
 		} catch (err) {
 			editing = null;
 			error = err instanceof Error ? err.message : 'Unable to load product details.';
@@ -223,54 +237,32 @@
 		}
 	}
 
-	function clearSelectedFile() {
-		if (previewUrl) URL.revokeObjectURL(previewUrl);
-		selectedFile = null;
-		previewUrl = '';
-	}
-
-	function selectFile(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0] ?? null;
-		clearSelectedFile();
-		if (!file) return;
-		if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-			error = 'Choose a JPEG, PNG, or WebP image.';
-			input.value = '';
-			return;
-		}
-		if (file.size > 5 * 1024 * 1024) {
-			error = 'Image uploads must be 5 MB or smaller.';
-			input.value = '';
-			return;
-		}
-		selectedFile = file;
-		previewUrl = URL.createObjectURL(file);
-		error = '';
-	}
-
 	async function save(product: ModeratorProduct) {
+		const normalizedPrice = priceInr.trim();
+		if (!isValidPrice(normalizedPrice)) {
+			priceError = 'Enter a valid non-negative price or leave the field empty.';
+			return;
+		}
 		const scrollPosition = captureScrollPosition();
 		saving = true;
 		error = '';
+		priceError = '';
 		try {
 			await updateModeratorProduct(product.id, {
 				name,
 				brand: brand.trim() || null,
 				ingredients: ingredients || null,
+				priceInr: normalizedPrice || null,
 				nutrition
 			});
-			if (selectedFile) {
-				await uploadModeratorImage(product.id, selectedFile, sourceUrl);
-			} else if (imageUrl !== originalImageUrl) {
-				await updateModeratorImage(product.id, imageUrl, sourceUrl);
+			if (imageUrl !== originalImageUrl) {
+				await updateModeratorImage(product.id, imageUrl, '');
 			}
 			message = 'Product changes saved.';
 			editing = null;
-			clearSelectedFile();
 			await load();
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Unable to save image.';
+			error = err instanceof Error ? err.message : 'Unable to save product.';
 		} finally {
 			saving = false;
 			await restoreScrollPosition(scrollPosition);
@@ -383,14 +375,31 @@
 				<legend>Basic product information</legend>
 				<label>Product name<input bind:value={createName} required maxlength="500" /></label>
 				<label>Brand<input bind:value={createBrand} maxlength="500" /></label>
-				<label
-					>Category<select bind:value={createCategoryId}>
-						<option value="">Not specified</option>
-						{#each categoryOptions as category (category.id)}
-							<option value={category.id}>{category.name}</option>
-						{/each}
-					</select></label
-				>
+				<label>
+					Price (INR)
+					<input
+						type="text"
+						inputmode="decimal"
+						bind:value={createPriceInr}
+						aria-invalid={createPriceError ? 'true' : undefined}
+						aria-describedby={createPriceError ? 'create-price-error' : 'create-price-hint'}
+						oninput={() => (createPriceError = '')}
+					/>
+					<small id="create-price-hint" class="field-hint"
+						>Enter amount in ₹. Leave blank if unavailable.</small
+					>
+					{#if createPriceError}<small id="create-price-error" class="field-error" role="alert"
+							>{createPriceError}</small
+						>{/if}
+				</label>
+				<div class="category-field">
+					<label for="create-category">Category</label>
+					<CategorySelect
+						id="create-category"
+						options={categoryOptions}
+						bind:value={createCategoryId}
+					/>
+				</div>
 			</fieldset>
 			<fieldset class="editor-section ingredients-section">
 				<legend>Ingredients</legend>
@@ -399,39 +408,7 @@
 					></textarea></label
 				>
 			</fieldset>
-			<fieldset class="editor-section nutrition-section">
-				<legend>Nutrition per 100g / 100ml</legend>
-				{#each [['kcalPer100g', 'Energy (kcal)'], ['proteinG', 'Protein (g)'], ['carbohydratesG', 'Carbohydrates (g)'], ['sugarsG', 'Sugars (g)'], ['fatG', 'Total fat (g)'], ['saturatedFatG', 'Saturated fat (g)'], ['transFatG', 'Trans fat (g)'], ['fibreG', 'Dietary fibre (g)'], ['sodiumMg', 'Sodium (mg)'], ['saltG', 'Salt (g)']] as field (field[0])}
-					<label
-						>{field[1]}<input
-							type="number"
-							min="0"
-							step="any"
-							bind:value={createNutrition[field[0] as keyof Nutrition]}
-						/></label
-					>
-				{/each}
-			</fieldset>
-			<fieldset class="editor-section serving-section">
-				<legend>Serving size</legend>
-				<label
-					>Amount<input
-						type="number"
-						min="0"
-						step="any"
-						bind:value={createNutrition.servingSize}
-					/></label
-				>
-				<label
-					>Unit<select bind:value={createNutrition.servingUnit}>
-						<option value={null}>Not specified</option><option value="g">g</option><option
-							value="ml">ml</option
-						><option value="oz">oz</option><option value="piece">piece</option><option
-							value="serving">serving</option
-						>
-					</select></label
-				>
-			</fieldset>
+			<NutritionEditor bind:nutrition={createNutrition} />
 			<fieldset class="editor-section image-section">
 				<legend>Product image</legend>
 				<label
@@ -460,9 +437,13 @@
 			{#each products as product (product.id)}
 				<section class="row">
 					<div class="preview">
-						{#if product.image_url}<img src={product.image_url} alt={product.name} />{:else}<span
-								>No image</span
-							>{/if}
+						{#if product.image_url && imageErrors[product.id] !== product.image_url}
+							<img
+								src={product.image_url}
+								alt={product.name}
+								onerror={() => (imageErrors[product.id] = product.image_url ?? '')}
+							/>
+						{:else}<span>No image</span>{/if}
 					</div>
 					<div class="info">
 						<strong>{product.name}</strong><span
@@ -475,6 +456,21 @@
 								<legend>Basic product information</legend>
 								<label>Product name<input bind:value={name} required maxlength="500" /></label>
 								<label>Brand<input bind:value={brand} maxlength="500" /></label>
+								<label>
+									Price (INR)
+									<input
+										type="text"
+										inputmode="decimal"
+										bind:value={priceInr}
+										aria-invalid={priceError ? 'true' : undefined}
+										aria-describedby={priceError ? 'price-error' : 'price-hint'}
+										oninput={() => (priceError = '')}
+									/>
+									<small id="price-hint" class="field-hint">Leave blank to clear the price.</small>
+									{#if priceError}<small id="price-error" class="field-error" role="alert"
+											>{priceError}</small
+										>{/if}
+								</label>
 							</fieldset>
 							<fieldset class="editor-section ingredients-section" disabled={detailsLoading}>
 								<legend>Ingredients</legend>
@@ -484,70 +480,36 @@
 										rows="4"></textarea></label
 								>
 							</fieldset>
-							<fieldset class="editor-section nutrition-section" disabled={detailsLoading}>
-								<legend>Nutrition per 100g / 100ml</legend>
-								{#each [['kcalPer100g', 'Energy (kcal)'], ['proteinG', 'Protein (g)'], ['carbohydratesG', 'Carbohydrates (g)'], ['sugarsG', 'Sugars (g)'], ['fatG', 'Total fat (g)'], ['saturatedFatG', 'Saturated fat (g)'], ['transFatG', 'Trans fat (g)'], ['fibreG', 'Dietary fibre (g)'], ['sodiumMg', 'Sodium (mg)'], ['saltG', 'Salt (g)']] as field (field[0])}
-									<label
-										>{field[1]}<input
-											type="number"
-											min="0"
-											step="any"
-											bind:value={nutrition[field[0] as keyof Nutrition]}
-										/></label
-									>
-								{/each}
-							</fieldset>
-							<fieldset class="editor-section" disabled={detailsLoading}>
-								<legend>Serving size</legend>
+							<NutritionEditor bind:nutrition disabled={detailsLoading} />
+							<fieldset class="editor-section image-section" disabled={detailsLoading}>
+								<legend>Product image</legend>
 								<label
-									>Amount<input
-										type="number"
-										min="0"
-										step="any"
-										bind:value={nutrition.servingSize}
+									>Image URL<input
+										type="url"
+										bind:value={imageUrl}
+										placeholder="https://…"
 									/></label
 								>
-								<label
-									>Unit<select bind:value={nutrition.servingUnit}>
-										<option value={null}>Not specified</option><option value="g">g</option><option
-											value="ml">ml</option
-										>
-										<option value="oz">oz</option><option value="piece">piece</option><option
-											value="serving">serving</option
-										>
-									</select></label
-								>
 							</fieldset>
-							<input bind:value={imageUrl} placeholder="https://… image URL" /><input
-								bind:value={sourceUrl}
-								placeholder="Source page URL"
-							/>
-							<label class="file-input">
-								Upload image
-								<input type="file" accept="image/jpeg,image/png,image/webp" onchange={selectFile} />
-							</label>
-							{#if previewUrl}<img
-									class="upload-preview"
-									src={previewUrl}
-									alt="Upload preview"
-								/>{/if}
-							<button disabled={saving || detailsLoading} onclick={() => void save(product)}
-								>{saving ? 'Saving…' : 'Save changes'}</button
-							><button
-								disabled={saving}
-								class="secondary"
-								onclick={() => {
-									clearSelectedFile();
-									editing = null;
-								}}>Cancel</button
-							>
-							<button
-								class="danger"
-								disabled={saving || deleting === product.id}
-								onclick={() => void deleteProduct(product)}
-							>
-								{deleting === product.id ? 'Deleting…' : 'Delete product'}
-							</button>
+							<div class="edit-actions">
+								<button disabled={saving || detailsLoading} onclick={() => void save(product)}
+									>{saving ? 'Saving…' : 'Save changes'}</button
+								>
+								<button
+									disabled={saving}
+									class="secondary"
+									onclick={() => {
+										editing = null;
+									}}>Cancel</button
+								>
+								<button
+									class="danger"
+									disabled={saving || deleting === product.id}
+									onclick={() => void deleteProduct(product)}
+								>
+									{deleting === product.id ? 'Deleting…' : 'Delete product'}
+								</button>
+							</div>
 						</div>
 					{:else}<div class="actions">
 							<button onclick={() => beginEdit(product)}>Edit</button>{#if product.image_url}
@@ -629,13 +591,13 @@
 <style>
 	.dashboard {
 		max-width: 1180px;
-		margin: 48px auto;
+		margin: 32px auto;
 		padding: 0 24px;
 	}
 	.filters {
 		display: flex;
 		gap: 10px;
-		margin: 24px 0;
+		margin: 16px 0;
 	}
 	input,
 	select {
@@ -653,7 +615,8 @@
 		margin: 12px 0;
 	}
 	button {
-		padding: 10px 14px;
+		min-height: 40px;
+		padding: 8px 12px;
 		border: 0;
 		border-radius: 8px;
 		background: #216b48;
@@ -675,15 +638,18 @@
 	.row {
 		display: grid;
 		grid-template-columns: 90px 1fr auto;
-		gap: 18px;
+		gap: 12px;
 		align-items: center;
-		padding: 14px;
+		padding: 12px;
 		border: 1px solid #e5e9e6;
 		border-radius: 12px;
 	}
 	.preview {
 		width: 90px;
 		height: 90px;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
 		display: grid;
 		place-items: center;
 		background: #f6f8f5;
@@ -691,39 +657,41 @@
 		color: #8b968e;
 	}
 	.preview img {
+		display: block;
 		width: 100%;
 		height: 100%;
+		max-width: 100%;
+		max-height: 100%;
 		object-fit: contain;
 	}
 	.info {
 		display: grid;
 		gap: 5px;
 	}
-	.info span,
-	.info small {
+	.info span {
 		color: #657168;
 	}
 	.summary {
 		color: #657168;
 	}
-	.actions,
-	.editor {
+	.actions {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
 		justify-content: flex-end;
 	}
 	.editor {
+		display: grid;
 		grid-column: 2 / -1;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		min-width: 0;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 10px;
+		gap: 8px;
 	}
 	.create-editor {
 		grid-column: auto;
-		margin: 16px 0 20px;
-		padding: 16px;
+		grid-template-columns: minmax(0, 1fr);
+		margin: 12px 0 16px;
+		padding: 12px;
 		border: 1px solid #dfe8e1;
 		border-radius: 12px;
 		background: #fbfdfb;
@@ -733,24 +701,34 @@
 		font-size: 1.2rem;
 	}
 	.editor input {
+		width: 100%;
 		min-width: 0;
 		max-width: 100%;
+		box-sizing: border-box;
+		padding: 8px;
+	}
+	.basic-section {
+		align-content: start;
 	}
 	.editor-section {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-		gap: 10px;
+		gap: 8px;
 		margin: 0;
 		min-width: 0;
-		padding: 12px;
+		padding: 10px;
 		border: 1px solid #dfe8e1;
 		border-radius: 8px;
 	}
+	.basic-section label:first-of-type {
+		grid-column: 1 / -1;
+	}
 	.ingredients-section {
+		grid-column: 1 / -1;
 		grid-template-columns: minmax(0, 1fr);
 	}
 	.image-section {
-		grid-template-columns: minmax(0, 1fr);
+		grid-column: 1 / -1;
 	}
 	.image-section small {
 		color: #657168;
@@ -762,15 +740,22 @@
 	.editor-section label {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 3px;
+		color: #4f5f54;
+		font-size: 13px;
+	}
+	.category-field {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
 		color: #4f5f54;
 		font-size: 13px;
 	}
 	.editor-section textarea {
 		width: 100%;
-		min-height: 96px;
+		min-height: 80px;
 		resize: vertical;
-		padding: 10px;
+		padding: 8px;
 		border: 1px solid #ccd8cf;
 		border-radius: 8px;
 		font: inherit;
@@ -783,22 +768,19 @@
 		overflow: hidden;
 		clip: rect(0, 0, 0, 0);
 	}
-	.file-input {
-		padding: 10px 14px;
-		border: 1px solid #ccd8cf;
-		border-radius: 8px;
-		color: #216b48;
-		cursor: pointer;
-		font-weight: 600;
+	.field-error {
+		color: #a32626;
+		font-size: 12px;
 	}
-	.file-input input {
-		display: none;
+	.field-hint {
+		color: #657168;
+		font-size: 12px;
 	}
-	.upload-preview {
-		width: 70px;
-		height: 70px;
-		object-fit: contain;
-		border-radius: 8px;
+	.edit-actions {
+		display: flex;
+		grid-column: 1 / -1;
+		flex-wrap: wrap;
+		gap: 8px;
 	}
 	.editor-actions {
 		display: flex;
@@ -811,7 +793,7 @@
 		justify-content: center;
 		align-items: center;
 		gap: 18px;
-		margin: 24px 0;
+		margin: 16px 0;
 	}
 	.page-buttons,
 	.page-jump {
@@ -853,6 +835,9 @@
 		.editor {
 			grid-column: 1 / -1;
 			justify-content: flex-start;
+		}
+		.editor {
+			grid-template-columns: minmax(0, 1fr);
 		}
 		.filters {
 			flex-wrap: wrap;

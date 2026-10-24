@@ -70,7 +70,7 @@
 		<a href={resolve('/compare')}>Compare</a>
 		<a href={resolve('/discover')}>Discover</a>
 		{#if user}
-			<a href={resolve('/profile')}>{user.name}</a>
+			<a href={resolve('/profile')}>Profile</a>
 			<button class="nav-button" onclick={() => void signOut()}>Sign out</button>
 		{:else}
 			<a href={resolve('/login')}>Sign in</a>
@@ -93,6 +93,15 @@
 	.logo {
 		display: flex;
 		align-items: center;
+		border-radius: 8px;
+		outline: 2px solid #080808;
+		outline-offset: 1px;
+		transition: outline-color 160ms ease;
+	}
+
+	.logo:hover,
+	.logo:focus-visible {
+		outline-color: #ffffff;
 	}
 
 	.logo img {
@@ -133,6 +142,13 @@
 		cursor: pointer;
 	}
 
+	.search-button:hover,
+	.search-button:focus-visible {
+		border-radius: 6px;
+		outline: 2px solid #ffffff;
+		outline-offset: 2px;
+	}
+
 	.nav-search input {
 		flex: 1;
 		border: none;
@@ -155,21 +171,42 @@
 	}
 
 	.nav-links a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 8px 10px;
+		border-radius: 8px;
 		color: white;
 		text-decoration: none;
+		outline: 2px solid #080808;
+		outline-offset: 1px;
+		transition: outline-color 160ms ease;
 	}
 
-	.nav-links a:hover {
-		text-decoration: underline;
+	.nav-links a:hover,
+	.nav-links a:focus-visible {
+		outline-color: #ffffff;
 	}
 
 	.nav-button {
-		padding: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 8px 10px;
 		border: 0;
+		border-radius: 8px;
 		background: transparent;
 		color: white;
 		font: inherit;
 		cursor: pointer;
+		outline: 2px solid #080808;
+		outline-offset: 1px;
+		transition: outline-color 160ms ease;
+	}
+
+	.nav-button:hover,
+	.nav-button:focus-visible {
+		outline-color: #ffffff;
 	}
 
 	@media (max-width: 900px) {

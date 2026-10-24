@@ -1,7 +1,6 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
@@ -10,11 +9,9 @@ import { pool } from './db/pool.js';
 
 import productRoutes from './routes/products.js';
 import searchRoutes from './routes/search.js';
-import barcodeRoutes from './routes/barcode.js';
 import compareRoutes from './routes/compare.js';
 import categoryRoutes from './routes/categories.js';
 import authRoutes from './routes/auth.js';
-import accountRoutes from './routes/account.js';
 import moderatorRoutes from './routes/moderator.js';
 
 const app = Fastify({
@@ -44,13 +41,6 @@ await app.register(cors, {
 	credentials: true,
 	methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 	allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
-});
-
-await app.register(multipart, {
-	limits: {
-		fileSize: 5 * 1024 * 1024,
-		files: 1,
-	},
 });
 
 await mkdir(uploadDirectory, { recursive: true });
@@ -89,14 +79,6 @@ app.register(searchRoutes, {
 });
 
 // ============================================================
-// BARCODE ROUTES
-// ============================================================
-
-app.register(barcodeRoutes, {
-	prefix: '/api/products',
-});
-
-// ============================================================
 // COMPARE ROUTES
 // ============================================================
 
@@ -114,10 +96,6 @@ app.register(categoryRoutes, {
 
 app.register(authRoutes, {
 	prefix: '/api/auth',
-});
-
-app.register(accountRoutes, {
-	prefix: '/api/account',
 });
 
 app.register(moderatorRoutes, {

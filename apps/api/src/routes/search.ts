@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { pool } from '../db/pool.js';
-import { getAuthUser } from '../auth.js';
+import { numericToNumber } from '../db/numeric.js';
 
 interface SearchQuery {
   q?: string;
@@ -9,7 +9,6 @@ interface SearchQuery {
   limit?: string;
   offset?: string;
   categories?: string;
-  nutrition?: string;
 }
 
 export function parsePagination(pageValue = '1', pageSizeValue = '24') {
@@ -42,7 +41,6 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
   app.get<{
     Querystring: SearchQuery;
   }>('/search', async (request, reply) => {
-    const user = await getAuthUser(request);
     const q = request.query.q?.trim() ?? '';
     const pageSizeInput = request.query.pageSize ?? request.query.limit ?? '24';
     const pageInput = request.query.page ?? (
@@ -114,26 +112,11 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
       )`);
     }
 
-    const nutritionFilters = request.query.nutrition?.split(',').filter(Boolean) ?? [];
-    for (const filter of nutritionFilters) {
-      if (filter === 'High Protein') {
-        conditions.push(`n.protein_g >= 10`);
-        countConditions.push(`n.protein_g >= 10`);
-      } else if (filter === 'Low Sugar') {
-        conditions.push(`n.sugars_g <= 5`);
-        countConditions.push(`n.sugars_g <= 5`);
-      } else if (filter === 'Low Calories') {
-        conditions.push(`n.kcal_per_100g <= 100`);
-        countConditions.push(`n.kcal_per_100g <= 100`);
-      }
-    }
-
     const whereClause = conditions.length > 0
       ? `WHERE ${conditions.join('\n        AND ')}`
       : '';
     const limitParam = addParam(pageSize);
     const offsetParam = addParam(offset);
-    const userParam = addParam(user?.id ?? null);
     const orderClause = q
       ? `CASE
           WHEN LOWER(p.name) = LOWER(${exactTerm}) THEN 1
@@ -150,9 +133,9 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         p.id,
         p.name,
         p.brand,
-        p.barcode,
         p.nutri_score,
         p.nova_group,
+        p.price_inr,
         n.kcal_per_100g,
         n.fat_g,
         n.saturated_fat_g,
@@ -163,8 +146,14 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         n.protein_g,
         n.sodium_mg,
         n.salt_g,
+        n.cholesterol_mg,
+        n.calcium_mg,
+        n.iron_mg,
+        n.vitamins,
+        n.serving_size,
+        n.serving_unit,
+        n.nutrition_basis,
         image.image_url,
-        EXISTS (SELECT 1 FROM product_favourites pf WHERE pf.product_id = p.id AND pf.user_id = ${userParam}::uuid) AS is_favourite,
         category.name AS category_name
       FROM "Products" p
       LEFT JOIN "Nutrition" n ON n.product_id = p.id
@@ -209,12 +198,11 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         id: product.id,
         name: product.name,
         brand: product.brand,
-        barcode: product.barcode,
         imageUrl: product.image_url,
-        isFavourite: product.is_favourite,
         category: product.category_name,
         nutriScore: product.nutri_score,
         novaGroup: product.nova_group,
+        priceInr: numericToNumber(product.price_inr),
         nutrition: {
           kcalPer100g: product.kcal_per_100g,
           fatG: product.fat_g,
@@ -226,6 +214,13 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
           proteinG: product.protein_g,
           sodiumMg: product.sodium_mg,
           saltG: product.salt_g,
+          cholesterolMg: product.cholesterol_mg,
+          calciumMg: product.calcium_mg,
+          ironMg: product.iron_mg,
+          vitamins: product.vitamins,
+          servingSize: product.serving_size,
+          servingUnit: product.serving_unit,
+          basis: product.nutrition_basis === 'per_serving' ? 'perServing' : 'per100g',
         },
       })),
       total: countResult.rows[0].total,

@@ -3,14 +3,29 @@
 	import Footer from '$lib/components/Footer.svelte';
 </script>
 
-<Navbar />
+<div class="app-shell">
+	<Navbar />
 
-<slot />
+	<div class="page-content">
+		<slot />
+	</div>
 
-<Footer />
+	<Footer />
+</div>
 
 <style>
 	:global(body) {
 		margin: 0;
+	}
+
+	.app-shell {
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
+		min-height: 100dvh;
+	}
+
+	.page-content {
+		flex: 1;
 	}
 </style>

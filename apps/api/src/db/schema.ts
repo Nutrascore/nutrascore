@@ -8,17 +8,19 @@ import {
   timestamp,
   boolean,
   primaryKey,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // Products
 export const products = pgTable("Products", {
   id: uuid("id").primaryKey(),
   name: varchar("name").notNull(),
   brand: varchar("brand"),
-  barcode: varchar("barcode").unique(),
   ingredients: text("ingredients"),
   nutriScore: varchar("nutri_score"),
   novaGroup: smallint("nova_group"),
+  priceInr: numeric("price_inr"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
@@ -49,16 +51,6 @@ export const userSessions = pgTable("user_sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
-
-export const productFavourites = pgTable(
-  "product_favourites",
-  {
-    userId: uuid("user_id").notNull(),
-    productId: uuid("product_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.userId, table.productId] })],
-);
 
 export const productImageReviews = pgTable("product_image_reviews", {
   productId: uuid("product_id").primaryKey(),
@@ -101,26 +93,16 @@ export const nutrition = pgTable("Nutrition", {
   proteinG: numeric("protein_g"),
   sodiumMg: numeric("sodium_mg"),
   saltG: numeric("salt_g"),
+  cholesterolMg: numeric("cholesterol_mg"),
+  calciumMg: numeric("calcium_mg"),
+  ironMg: numeric("iron_mg"),
+  vitamins: text("vitamins"),
   servingSize: numeric("serving_size"),
   servingUnit: varchar("serving_unit", { length: 20 }),
-});
-
-// Allergens
-export const allergens = pgTable("allergens", {
-  id: uuid("id").primaryKey(),
-  name: varchar("name").unique().notNull(),
-});
-
-// Product Allergens
-export const productAllergens = pgTable(
-  "product_allergens",
-  {
-    productId: uuid("product_id").notNull(),
-    allergenId: uuid("allergen_id").notNull(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.productId, table.allergenId],
-    }),
-  ],
-);
+  nutritionBasis: varchar("nutrition_basis", { length: 20 }).notNull().default("per_100g"),
+}, (table) => [
+  check(
+    "Nutrition_nutrition_basis_check",
+    sql`${table.nutritionBasis} in ('per_serving', 'per_100g')`,
+  ),
+]);

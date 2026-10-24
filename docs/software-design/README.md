@@ -1,17 +1,13 @@
-# NutraScore software design documentation
+# Software design documentation
 
-This index links to documentation derived from the current repository implementation.
+These documents describe the active web application, API, database contract,
+and operational scripts:
 
-- [Structure chart](./structure-chart.md) — frontend, API, persistence, and operational modules.
-- [Data dictionary](./data-dictionary.md) — PostgreSQL tables, relationships, API structures, and validation.
-- [DFD Level 0](./dfd-level-0.md) — NutraScore context diagram.
-- [DFD Level 1](./dfd-level-1.md) — system-level process decomposition.
-- [DFD Level 2](./dfd-level-2.md) — detailed authentication, discovery, engagement, and moderator flows.
+- [Structure chart](./structure-chart.md)
+- [Data dictionary](./data-dictionary.md)
+- [DFD Level 0](./dfd-level-0.md)
+- [DFD Level 1](./dfd-level-1.md)
+- [DFD Level 2](./dfd-level-2.md)
 
-## Scope and evidence
-
-The diagrams describe code currently present under `apps/web/`, `apps/api/`, and
-`apps/api/drizzle/`. Product data is read from PostgreSQL. The image enrichment
-runner is documented only as an operational/background source because it is not
-registered as a Fastify route and is not part of the normal web request path.
-
+The web application is implemented in `apps/web/`, the API in `apps/api/`,
+and the product catalogue is stored in PostgreSQL and imported from CSV.

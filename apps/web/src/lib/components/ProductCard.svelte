@@ -18,7 +18,6 @@
 
 	let isSelected = $derived($compareStore.includes(product.id));
 	let imageFailed = $state(false);
-	let actionError = $state('');
 
 	function addToComparison(event: MouseEvent) {
 		event.stopPropagation();
@@ -69,8 +68,6 @@
 			<p class="brand">{product.brand || 'Brand not listed'}</p>
 		</div>
 	</a>
-
-	{#if actionError}<p class="action-error">{actionError}</p>{/if}
 
 	{#if selectMode}
 		<div class="card-actions">
@@ -217,12 +214,6 @@
 
 	.card-actions {
 		padding: 0 16px 16px;
-	}
-
-	.action-error {
-		margin: 0 16px 12px;
-		color: #a32626;
-		font-size: 12px;
 	}
 
 	.compare-button {
