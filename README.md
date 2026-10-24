@@ -292,6 +292,44 @@ pnpm dev:web
 The frontend is at <http://localhost:5173>; the API is at
 <http://localhost:3000>.
 
+## CSV Showcase Mode (no PostgreSQL)
+
+Showcase Mode runs the shared web app against a separate, read-only API that
+loads `data/processed/packaged_foods_india_cleaned.csv` once at startup. It
+requires Node.js 24 and pnpm 10 as used by the project CI, but does not require
+PostgreSQL, database credentials, Python dependencies, or migrations.
+
+From the repository root, install the JavaScript dependencies and start both
+processes:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm dev:showcase
+```
+
+Open <http://localhost:5174/discover>; the frontend uses the showcase API at
+<http://127.0.0.1:3001>. The dedicated frontend port lets Showcase Mode run
+alongside the full application's frontend. The mode supports product listing,
+search, autocomplete, category filtering, pagination, product details, and
+comparison of up to two products. It is read-only and does not provide registration,
+sign-in, moderator editing, or database persistence.
+
+Product images are served from a static manifest
+(`data/processed/showcase-image-manifest.json`) that maps each CSV product to
+the exact image URL already stored in the PostgreSQL database for normal mode.
+463 of the 852 CSV products have a verified match; the remaining products show
+the existing placeholder. The CSV does not
+establish a nutrition basis, so reported nutrition values are shown as recorded
+without claiming they are per serving or per 100 g. Missing or malformed
+numeric values remain unavailable.
+
+To regenerate the image manifest after adding or updating images in the
+database (requires PostgreSQL):
+
+```powershell
+pnpm --filter api generate:showcase-manifest
+```
+
 ## Verify setup and run checks
 
 From the repository root, with the Python virtual environment activated:
@@ -319,6 +357,7 @@ Available root commands include:
 | ----------------------- | ------------------------------------------------ |
 | `pnpm dev:api`          | Start the API in watch mode                      |
 | `pnpm dev:web`          | Start the frontend dev server                    |
+| `pnpm dev:showcase`     | Start the read-only CSV Showcase API and frontend |
 | `pnpm db:migrate`       | Apply Drizzle SQL migrations                     |
 | `pnpm check`            | Svelte checks and API TypeScript typecheck       |
 | `pnpm lint`             | Frontend Prettier and ESLint checks              |

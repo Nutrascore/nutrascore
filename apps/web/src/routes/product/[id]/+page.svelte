@@ -65,6 +65,9 @@
 		const nutrition = product?.nutrition;
 		if (!nutrition) return 'N/A';
 		const value = nutrition[key];
+		if (nutrition.basis === 'unknown') {
+			return formatNutritionValue(value, unit);
+		}
 		if (isText) {
 			return nutrition.basis === nutritionMode ? formatNutritionValue(value) : 'N/A';
 		}
@@ -189,46 +192,48 @@
 
 				<p class="nutrition-note">Serving size: {servingDescription()}</p>
 
-				<div class="nutrition-toggle" role="group" aria-label="Nutrition display basis">
-					<button
-						type="button"
-						class:active={nutritionMode === 'perServing'}
-						aria-pressed={nutritionMode === 'perServing'}
-						onclick={() => (nutritionMode = 'perServing')}
-					>
-						Per serving
-					</button>
-					<button
-						type="button"
-						class:active={nutritionMode === 'per100g'}
-						aria-pressed={nutritionMode === 'per100g'}
-						onclick={() => (nutritionMode = 'per100g')}
-					>
-						Per 100 g
-					</button>
-				</div>
-
-				<p class="nutrition-note">
-					{#if nutritionMode === 'perServing'}
-						{#if product.nutrition?.servingSize && product.nutrition.servingUnit}
-							Per serving ({servingDescription()})
-						{:else}
-							Per serving
-						{/if}
-					{:else}
-						Per 100 g
-					{/if}
-				</p>
 				{#if product.nutrition?.basis === 'unknown'}
 					<p class="nutrition-unavailable" role="status">
-						Per 100 g values are unavailable because the nutrition basis is unknown.
+						Values are shown as recorded; their nutrition basis is not specified.
 					</p>
-				{:else if product.nutrition && product.nutrition.basis !== nutritionMode && !hasConvertibleServingSize()}
-					<p class="nutrition-unavailable" role="status">
-						{nutritionMode === 'per100g'
-							? 'Per 100 g values are unavailable because a valid serving size in grams is not available. Switch to Per serving to view the original values.'
-							: 'Per-serving values are unavailable because a valid serving size in grams is not available. Switch to Per 100 g to view the original values.'}
+				{:else}
+					<div class="nutrition-toggle" role="group" aria-label="Nutrition display basis">
+						<button
+							type="button"
+							class:active={nutritionMode === 'perServing'}
+							aria-pressed={nutritionMode === 'perServing'}
+							onclick={() => (nutritionMode = 'perServing')}
+						>
+							Per serving
+						</button>
+						<button
+							type="button"
+							class:active={nutritionMode === 'per100g'}
+							aria-pressed={nutritionMode === 'per100g'}
+							onclick={() => (nutritionMode = 'per100g')}
+						>
+							Per 100 g
+						</button>
+					</div>
+
+					<p class="nutrition-note">
+						{#if nutritionMode === 'perServing'}
+							{#if product.nutrition?.servingSize && product.nutrition.servingUnit}
+								Per serving ({servingDescription()})
+							{:else}
+								Per serving
+							{/if}
+						{:else}
+							Per 100 g
+						{/if}
 					</p>
+					{#if product.nutrition && product.nutrition.basis !== nutritionMode && !hasConvertibleServingSize()}
+						<p class="nutrition-unavailable" role="status">
+							{nutritionMode === 'per100g'
+								? 'Per 100 g values are unavailable because a valid serving size in grams is not available. Switch to Per serving to view the original values.'
+								: 'Per-serving values are unavailable because a valid serving size in grams is not available. Switch to Per 100 g to view the original values.'}
+						</p>
+					{/if}
 				{/if}
 
 				<div class="nutrition-grid">

@@ -61,6 +61,20 @@ describe("nutrition comparison", () => {
     expect(analysis).toContain("20% cheaper than Product B");
   });
 
+  it("does not claim a nutrition comparison when either nutrition basis is unknown", () => {
+    const unknownBasisProduct = createProduct("c", "Product C", 90, {
+      ...productA.nutrition!,
+      basis: "unknown",
+    });
+
+    expect(buildComparisonAnalysis(unknownBasisProduct, productB)).toContain(
+      "nutrition values cannot be compared because the basis is unspecified",
+    );
+    expect(buildComparisonAnalysis(unknownBasisProduct, productB)).toContain(
+      "10% cheaper than Product B",
+    );
+  });
+
   it("keeps zero values visible and marks missing or zero-reference comparisons unavailable", () => {
     expect(formatComparisonNutrition("12.4", "15", " g").percentage).toBe(
       "−17.33%",

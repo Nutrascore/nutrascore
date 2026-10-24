@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { compareStore } from '$lib/stores/compareStore';
 	import { compareProducts, type Product } from '$lib/api';
+	import { formatNutritionValue } from '$lib/utils/formatNutrition';
 	import {
 		buildComparisonAnalysis,
 		normalisedValue,
@@ -47,6 +48,14 @@
 		key: ComparisonNutrientKey,
 		unit: string
 	) {
+		if (product.nutrition?.basis === 'unknown' && other.nutrition?.basis === 'unknown') {
+			return {
+				value: formatNutritionValue(product.nutrition[key], unit),
+				percentage: 'N/A',
+				percentageClass: 'neutral'
+			};
+		}
+
 		const comparison = formatComparisonNutrition(
 			normalisedValue(product, key),
 			normalisedValue(other, key),
@@ -233,9 +242,14 @@
 						<h2 id="nutrition-heading">Nutrition comparison</h2>
 					</div>
 					<p class="section-description">
-						Values are compared per 100 g. Per-serving values are normalized when a valid gram
-						serving size is available; nutrients with missing or uncertain measurement bases may be
-						excluded.
+						{#if comparisonProducts.every((product) => product.nutrition?.basis === 'unknown')}
+							Values are shown as recorded in the dataset; its nutrition basis is unspecified, so
+							percent differences are not calculated.
+						{:else}
+							Values are compared per 100 g. Per-serving values are normalized when a valid gram
+							serving size is available; nutrients with missing or uncertain measurement bases may
+							be excluded.
+						{/if}
 					</p>
 				</div>
 

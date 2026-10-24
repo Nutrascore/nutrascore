@@ -5,6 +5,7 @@
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api dev",
+    "dev:showcase": "pnpm --parallel --filter api --filter web dev:showcase",
     "check": "pnpm --filter web check && pnpm --filter api typecheck",
     "lint": "pnpm --filter web lint",
     "test": "pnpm test:unit && pnpm test:integration",

@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 
 const STORAGE_KEY = 'nutrascore.compare.products';
 const MAX_PRODUCTS = 2;
+const isShowcaseMode = import.meta.env.MODE === 'showcase';
 
 function normaliseSelection(ids: string[]): string[] {
 	return [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, MAX_PRODUCTS);
@@ -27,6 +28,10 @@ function readStoredSelection(): string[] {
 		return urlSelection;
 	}
 
+	if (isShowcaseMode) {
+		return [];
+	}
+
 	if (typeof localStorage === 'undefined') {
 		return [];
 	}
@@ -49,6 +54,10 @@ function readStoredSelection(): string[] {
 }
 
 function persistSelection(ids: string[]) {
+	if (isShowcaseMode) {
+		return;
+	}
+
 	if (typeof localStorage === 'undefined') {
 		return;
 	}

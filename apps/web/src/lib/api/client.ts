@@ -2,7 +2,11 @@ function normalizeApiOrigin(value: string): string {
 	return value.replace(/\/+$/, '').replace(/\/api$/, '');
 }
 
-const API_URL = normalizeApiOrigin(import.meta.env.PUBLIC_API_URL ?? 'http://localhost:3000');
+const apiOrigin =
+	import.meta.env.MODE === 'showcase'
+		? 'http://127.0.0.1:3001'
+		: (import.meta.env.PUBLIC_API_URL ?? 'http://localhost:3000');
+const API_URL = normalizeApiOrigin(apiOrigin);
 let csrfToken: string | null = null;
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

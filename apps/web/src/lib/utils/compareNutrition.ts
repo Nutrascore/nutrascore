@@ -193,6 +193,14 @@ function nutrientDescription(label: string, direction: 'higher' | 'lower'): stri
 }
 
 export function buildComparisonAnalysis(product: Product, other: Product): string {
+	const hasUnknownBasis =
+		product.nutrition?.basis === 'unknown' || other.nutrition?.basis === 'unknown';
+	if (hasUnknownBasis) {
+		const summary = `Compared with ${other.name}, nutrition values cannot be compared because the basis is unspecified for one or both products.`;
+		const priceSentence = priceDifferenceSentence(product, other);
+		return priceSentence ? `${summary} ${priceSentence}` : summary;
+	}
+
 	const higherPhrases: string[] = [];
 	const lowerPhrases: string[] = [];
 	const nutrientDefinitions = NUTRIENT_DEFINITIONS.filter((definition) => {

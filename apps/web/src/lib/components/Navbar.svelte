@@ -5,11 +5,13 @@
 
 	import { getCurrentUser, logout, type AuthUser } from '$lib/api';
 
+	const isShowcaseMode = import.meta.env.MODE === 'showcase';
 	let query = $state('');
 
 	let user = $state<AuthUser | null>(null);
 
 	$effect(() => {
+		if (isShowcaseMode) return;
 		getCurrentUser()
 			.then((value) => (user = value))
 			.catch(() => (user = null));
@@ -69,7 +71,9 @@
 	<div class="nav-links">
 		<a href={resolve('/compare')}>Compare</a>
 		<a href={resolve('/discover')}>Discover</a>
-		{#if user}
+		{#if isShowcaseMode}
+			<span class="showcase-label">Read-only showcase</span>
+		{:else if user}
 			<a href={resolve('/profile')}>Profile</a>
 			<button class="nav-button" onclick={() => void signOut()}>Sign out</button>
 		{:else}
@@ -181,6 +185,13 @@
 		outline: 2px solid #080808;
 		outline-offset: 1px;
 		transition: outline-color 160ms ease;
+	}
+
+	.showcase-label {
+		align-self: center;
+		padding: 8px 10px;
+		color: #d5e8dc;
+		font-size: 14px;
 	}
 
 	.nav-links a:hover,
