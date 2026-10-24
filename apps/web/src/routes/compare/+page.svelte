@@ -131,7 +131,6 @@
 	<div class="comparison-main">
 		<header class="compare-header">
 			<div>
-				
 				<h1>Compare Products</h1>
 				<p class="header-description">
 					See how nutrition, ingredients, and price stack up side by side.
@@ -231,7 +230,6 @@
 			<section class="comparison-section" aria-labelledby="nutrition-heading">
 				<div class="section-heading">
 					<div>
-						
 						<h2 id="nutrition-heading">Nutrition comparison</h2>
 					</div>
 					<p class="section-description">
@@ -362,7 +360,6 @@
 			<section class="comparison-section" aria-labelledby="ingredients-heading">
 				<div class="section-heading">
 					<div>
-						
 						<h2 id="ingredients-heading">Ingredients</h2>
 					</div>
 				</div>
@@ -379,7 +376,6 @@
 			<section class="comparison-section" aria-labelledby="analysis-heading">
 				<div class="section-heading">
 					<div>
-						
 						<h2 id="analysis-heading">Analysis</h2>
 					</div>
 				</div>
