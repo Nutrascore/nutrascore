@@ -390,7 +390,7 @@
 				</div>
 			</section>
 		{:else}
-			<p class="comparison-status">Add products to start comparing.</p>
+			<p class="comparison-status"></p>
 		{/if}
 	</div>
 </main>

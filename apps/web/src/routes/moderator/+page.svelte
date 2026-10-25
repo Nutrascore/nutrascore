@@ -273,7 +273,7 @@
 		if (deleting) return;
 		if (
 			!confirm(
-				`Delete "${product.name}"? This permanently removes the product and its catalogue associations.`
+				`Delete "${product.name}"? This permanently removes the product.`
 			)
 		)
 			return;
