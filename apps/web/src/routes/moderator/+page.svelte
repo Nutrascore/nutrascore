@@ -271,12 +271,7 @@
 
 	async function deleteProduct(product: ModeratorProduct) {
 		if (deleting) return;
-		if (
-			!confirm(
-				`Delete "${product.name}"? This permanently removes the product.`
-			)
-		)
-			return;
+		if (!confirm(`Delete "${product.name}"? This permanently removes the product.`)) return;
 		const scrollPosition = captureScrollPosition();
 		deleting = product.id;
 		error = '';

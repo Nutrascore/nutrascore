@@ -31,18 +31,18 @@
 	}
 
 	.app-shell.homepage {
-	position: relative;
-	isolation: isolate;
+		position: relative;
+		isolation: isolate;
 	}
 
 	.background-video {
-	position: fixed;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	z-index: -1;
-	pointer-events: none;
+		position: fixed;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		z-index: -1;
+		pointer-events: none;
 	}
 
 	.page-content {
