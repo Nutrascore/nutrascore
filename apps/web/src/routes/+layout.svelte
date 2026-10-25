@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/state';
+	
 	import Navbar from '$lib/components/Navbar.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 </script>
