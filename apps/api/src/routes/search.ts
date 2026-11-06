@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { pool } from '../db/pool.js';
-import { numericToNumber } from '../db/numeric.js';
+import { nutritionBasisFromDatabase, numericToNumber } from '../db/numeric.js';
 
 interface SearchQuery {
   q?: string;
@@ -133,37 +133,27 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         p.id,
         p.name,
         p.brand,
-        p.nutri_score,
-        p.nova_group,
         p.price_inr,
-        n.kcal_per_100g,
-        n.fat_g,
-        n.saturated_fat_g,
-        n.trans_fat_g,
-        n.carbohydrates_g,
-        n.sugars_g,
-        n.fibre_g,
-        n.protein_g,
-        n.sodium_mg,
-        n.salt_g,
-        n.cholesterol_mg,
-        n.calcium_mg,
-        n.iron_mg,
-        n.vitamins,
-        n.serving_size,
-        n.serving_unit,
-        n.nutrition_basis,
-        image.image_url,
+        p.kcal_per_100g,
+        p.fat_g,
+        p.saturated_fat_g,
+        p.trans_fat_g,
+        p.carbohydrates_g,
+        p.sugars_g,
+        p.fibre_g,
+        p.protein_g,
+        p.sodium_mg,
+        p.salt_g,
+        p.cholesterol_mg,
+        p.calcium_mg,
+        p.iron_mg,
+        p.vitamins,
+        p.serving_size,
+        p.serving_unit,
+        p.nutrition_basis,
+        p.image_url,
         category.name AS category_name
       FROM "Products" p
-      LEFT JOIN "Nutrition" n ON n.product_id = p.id
-      LEFT JOIN LATERAL (
-        SELECT image_url
-        FROM "ProductImages"
-        WHERE product_id = p.id
-        ORDER BY is_primary DESC, id
-        LIMIT 1
-      ) image ON TRUE
       LEFT JOIN LATERAL (
         SELECT c.name
         FROM product_categories pc
@@ -185,7 +175,6 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
       `
       SELECT COUNT(*)::int AS total
       FROM "Products" p
-      LEFT JOIN "Nutrition" n ON n.product_id = p.id
       ${countConditions.length > 0
         ? `WHERE ${countConditions.join('\n        AND ')}`
         : ''}
@@ -200,8 +189,6 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         brand: product.brand,
         imageUrl: product.image_url,
         category: product.category_name,
-        nutriScore: product.nutri_score,
-        novaGroup: product.nova_group,
         priceInr: numericToNumber(product.price_inr),
         nutrition: {
           kcalPer100g: product.kcal_per_100g,
@@ -220,7 +207,7 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
           vitamins: product.vitamins,
           servingSize: product.serving_size,
           servingUnit: product.serving_unit,
-          basis: product.nutrition_basis === 'per_serving' ? 'perServing' : 'per100g',
+          basis: nutritionBasisFromDatabase(product.nutrition_basis),
         },
       })),
       total: countResult.rows[0].total,

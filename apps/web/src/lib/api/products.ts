@@ -1,6 +1,8 @@
 import { apiFetch } from './client';
 import type { Product, ProductSearchFilters, ProductSummary } from './types';
 
+export type ComparisonProducts = [Product, Product];
+
 export function getProduct(id: string): Promise<Product> {
 	return apiFetch(`/api/products/${encodeURIComponent(id)}`);
 }
@@ -48,7 +50,9 @@ export function autocompleteProducts(
 	return apiFetch(`/api/products/autocomplete?${params.toString()}`);
 }
 
-export function compareProducts(ids: string[]): Promise<{ products: Product[] }> {
+export function compareProducts(
+	ids: readonly [string, string]
+): Promise<{ products: ComparisonProducts }> {
 	const params = new URLSearchParams({ ids: ids.join(',') });
 	return apiFetch(`/api/compare?${params.toString()}`);
 }

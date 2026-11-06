@@ -1,371 +1,575 @@
 # NutraScore
 
-NutraScore is a platform for discovering, comparing, and understanding
-packaged food products sold in India. It brings product names, brands,
-ingredients, nutrition values, serving information, categories, prices, and
-available images together in a searchable catalogue.
+NutraScore is a web application for discovering, viewing, and comparing
+packaged-food products sold in India. It brings product names, brands,
+ingredients, nutrition, serving information, categories, prices, and available
+images together in a searchable catalogue.
 
-## Problem statement and objectives
+## Features
 
-Nutrition and ingredient details for packaged foods can be difficult to find
-and compare across products. NutraScore provides a single interface for
-exploring the available product records and comparing their nutrition and
-price information.
-
-Project objectives:
-
-- provide product discovery by text and category,
-- present product details and available nutrition/serving information,
-- support side-by-side comparison of selected products,
-- provide account and moderator tools for maintaining catalogue records,
-- document a reproducible local development and data import workflow.
-
-The catalogue covers packaged products sold in India; it does not imply that
-all listed products are manufactured in India.
-
-## Implemented features
-
-- Search products by name or brand, with autocomplete, category filters, and
+- Search products by name or brand with autocomplete, category filters, and
   paginated results.
-- Browse categories and their products.
-- View product details, including available brand, ingredients, category,
-  price, image, serving information, and nutrition data.
-- Compare two products in the current web interface. The API accepts two to
-  four product IDs.
-- Register, sign in, view the current profile, and sign out using
-  CSRF-protected sessions.
-- Let moderators search, create, edit, and delete product records and manage
-  product images and review status.
+- Browse categories and the products associated with them.
+- View product details, including available ingredients, price, image, and
+  nutrition information.
+- Compare two distinct products side by side.
+- Register, sign in, view the current profile, and sign out.
+- Let authenticated moderators list, create, edit, and delete products.
 
-The application does not currently implement favorites, barcode scanning,
-automated image discovery/enrichment, or AI features.
+There are no category-management endpoints. Favorites, barcode scanning,
+automated image discovery, and AI features are not implemented.
 
-## Technology stack and architecture
+## Architecture
 
-- **Frontend:** SvelteKit, Svelte, TypeScript, and Vite.
-- **API:** Fastify and TypeScript.
-- **Database:** PostgreSQL, accessed at runtime through the `pg` connection
-  pool. Drizzle Kit uses the Drizzle schema and SQL migration journal for
-  database migrations.
-- **Data import:** Python with pandas and DuckDB.
-- **Checks:** Svelte/TypeScript checks, ESLint/Prettier, Vitest, and Python
-  `unittest`.
+- **Frontend:** SvelteKit, Svelte 5, TypeScript, and Vite.
+- **API:** Fastify and TypeScript, with REST endpoints under `/api`.
+- **Database:** PostgreSQL. The API uses the `pg` connection pool for runtime
+  queries; Drizzle ORM describes the schema and Drizzle Kit applies SQL
+  migrations.
+- **Authentication:** Passwords are bcrypt-hashed. Login creates an opaque
+  session token in an HTTP-only cookie; PostgreSQL stores its SHA-256 hash.
+  State-changing requests use a CSRF token. Sessions expire after 30 days.
 
-The web client calls the Fastify API. API route modules read and write
-PostgreSQL. Separately, a developer or data administrator can run the Python
-CSV importer to validate and load product data after database migrations.
-The importer is not part of the application's runtime request path.
+The browser frontend calls the Fastify API using `PUBLIC_API_URL`, includes
+credentials for session cookies, and uses the API's CSRF endpoint for
+state-changing requests. `WEB_ORIGIN` configures the API's allowed frontend
+origin.
 
-## Repository structure
+### Application database schema
 
-```text
-apps/
-  api/
-    drizzle/              SQL migrations and migration journal
-    src/
-      db/                 Drizzle schema and PostgreSQL pool
-      routes/             Product, search, category, comparison, auth, moderator
-  web/
-    src/
-      lib/                API clients, components, stores, and utilities
-      routes/             Home, discovery, product, compare, account, moderator
-data/
-  processed/              Tracked cleaned CSV copy
-  raw/                    Raw and cleaned CSV files used by the importer
-docs/
-  software-design/        DFDs, structure chart, data dictionary
-script/
-  load_postgres.py        Validated CSV import to PostgreSQL
-  sync_product_csv.py     CSV synchronization utility
-  validate_dataset.py     Dataset checks
-tests/
-  integration/            PostgreSQL integration check
-  unit/                   Frontend, API, and Python script tests
-```
+The current application schema consists of these five tables:
 
-## Dataset, provenance, and licensing
+| Table                | Purpose                                                          |
+| -------------------- | ---------------------------------------------------------------- |
+| `"Products"`         | Product details, image URL, price, and nutrition/serving fields. |
+| `categories`         | Product category names and descriptions.                         |
+| `product_categories` | Many-to-many links between products and categories.              |
+| `"Users"`            | Registered accounts and their `user` or `moderator` role.        |
+| `user_sessions`      | Hashed session tokens, expiry times, and user references.        |
 
-The cleaned dataset is present in both
-[`data/processed/packaged_foods_india_cleaned.csv`](./data/processed/packaged_foods_india_cleaned.csv)
-and
-[`data/raw/packaged_foods_india_cleaned.csv`](./data/raw/packaged_foods_india_cleaned.csv).
-The maintained importer currently reads the **raw-directory path**; the
-processed copy is not its input. The CSV contains source metadata fields
-including `Source_of_Data`, `Collection_Date`, and `Collected_By`.
+Nutrition is stored on `"Products"` rather than in a separate application
+table. Existing databases may retain historical tables such as `"Nutrition"`
+or `"ProductImages"`; these are not part of the current application schema and
+the migration does not automatically delete them.
 
-The repository does not establish ownership or redistribution terms for the
-dataset. Verify the original source's permission and license before
-redistributing it. Do not infer the nutrition values' basis from the field
-names or serving size: the CSV has no nutrition-basis field, and import writes
-require a basis verified from an authoritative source.
+### API overview
+
+- `GET /api/products/search` and `GET /api/products/autocomplete`
+- `GET /api/products/:id`
+- `GET /api/categories` and `GET /api/categories/:id/products`
+- `GET /api/compare?ids=<uuid>,<uuid>` (exactly two distinct products)
+- `/api/auth`: CSRF token, registration, login, current user, and logout
+- `/api/moderator/products`: moderator product listing and create/read/edit/delete
 
 ## Prerequisites
 
-The CI workflow is configured with Node.js 24, pnpm 10, Python 3.13, and
-PostgreSQL 17. Use those versions for the documented development workflow.
-Git and a locally installed PostgreSQL 17 server are required.
+The CI workflow uses Node.js 24, pnpm 10, Python 3.13, and PostgreSQL 17.
+Use those versions where available for the closest match to CI. Git, Node.js,
+pnpm, and PostgreSQL are needed for the application. Python and the
+`requirements-test.txt` packages are needed for CSV tools and Python tests.
 
-## First-time setup (Windows PowerShell)
+## Setup on Windows (PowerShell)
 
-The commands below are run from PowerShell. First fork
-`Nutrascore/nutrascore` on GitHub if you plan to contribute, then clone your
-fork (replace the username with your GitHub username).
+### 1. Install and verify prerequisites
 
-### 1. Clone the fork and enter the repository
+Install [Git for Windows](https://git-scm.com/download/win) and the latest
+Node.js 24 release from the [Node.js archive](https://nodejs.org/en/download/archive/)
+(including Corepack). Install PostgreSQL 17 using the
+[official Windows installer](https://www.postgresql.org/download/windows/);
+include the command-line tools so `psql` is available. Install
+[Python 3.13](https://www.python.org/downloads/windows/) if you plan to use
+the CSV tools or run Python tests.
 
-```powershell
-git clone https://github.com/<your-github-username>/nutrascore.git
-Set-Location .\nutrascore
-git remote add upstream https://github.com/Nutrascore/nutrascore.git
-```
-
-If you are not working from a fork, clone the upstream repository instead:
-
-```powershell
-git clone https://github.com/Nutrascore/nutrascore.git
-Set-Location .\nutrascore
-```
-
-Create a working branch before making project changes:
+Open a new PowerShell window and verify:
 
 ```powershell
-git switch -c work/my-change
+git --version
+node --version
+corepack --version
+psql --version
 ```
 
-### 2. Install JavaScript and Python dependencies
-
-Install/use pnpm 10 through Corepack, then install exactly from the committed
-lockfile:
+Enable pnpm 10 through Corepack:
 
 ```powershell
 corepack enable
 corepack prepare pnpm@10 --activate
-pnpm install --frozen-lockfile
+pnpm --version
 ```
 
-Python 3.13 is used by the CSV importer and Python unit tests. Create a local
-virtual environment and install the repository's Python requirements:
+### 2. Start PostgreSQL and create a development database
+
+Find the installed PostgreSQL service, then start the service using the exact
+name shown on your computer (the version suffix can vary). Starting it may
+require an elevated PowerShell window:
 
 ```powershell
-py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt
-.\.venv\Scripts\Activate.ps1
+Get-Service *postgres*
+Start-Service -Name postgresql-x64-17
+Get-Service -Name postgresql-x64-17
 ```
 
-If PowerShell blocks virtual-environment activation, allow it for this shell
-only and activate again:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
-```
-
-### 3. Start locally installed PostgreSQL 17 and create the development database
-
-Install PostgreSQL 17 using the installer for your operating system, start
-its local service, and connect as a PostgreSQL administrator:
+If that service name does not exist, substitute the name returned by
+`Get-Service *postgres*`. Connect as the PostgreSQL administrator:
 
 ```powershell
 psql -U postgres -h localhost -p 5432 -d postgres
 ```
 
-At the `psql` prompt, create a dedicated local role and database; replace the
-placeholder password with a password of your choice:
+At the `psql` prompt, create a local role and empty database, replacing the
+password placeholder with a password of your choice:
 
 ```sql
 CREATE ROLE nutrascore LOGIN PASSWORD '<choose-a-local-password>';
 CREATE DATABASE nutrascore OWNER nutrascore;
+CREATE DATABASE nutrascore_test OWNER nutrascore;
 \q
 ```
 
-Verify the connection using `psql` (replace the placeholder and URL-encode any
-reserved characters in the password):
+The second database is reserved for integration tests.
+
+### 3. Clone the repository and install dependencies
+
+Clone the upstream repository, or replace its URL with your fork:
 
 ```powershell
-psql "postgresql://nutrascore:<your-local-password>@localhost:5432/nutrascore" -c "SELECT current_database(), current_user;"
+git clone https://github.com/Nutrascore/nutrascore.git
+Set-Location .\nutrascore
+pnpm install --frozen-lockfile
 ```
 
-### 4. Configure local environment files
+### 4. Configure environment files
 
-From the repository root, copy the tracked examples:
+The API reads the repository-root `.env` first and then `apps/api/.env` for
+values not already set. Vite is configured to read frontend environment files
+from the repository root. Create the API file from its example:
 
 ```powershell
 Copy-Item .\apps\api\.env.example .\apps\api\.env
-Copy-Item .\apps\web\.env.example .\apps\web\.env
 notepad .\apps\api\.env
-notepad .\apps\web\.env
 ```
 
-In `apps/api/.env`, set a database URL matching the role/password chosen
-above, and retain or set the local API values:
+Set `DATABASE_URL` to the role and database created above. URL-encode reserved
+characters in the password:
 
 ```dotenv
-DATABASE_URL=postgresql://nutrascore:<your-local-password>@localhost:5432/nutrascore
+DATABASE_URL=postgresql://nutrascore:<URL-encoded-password>@localhost:5432/nutrascore
 PORT=3000
 WEB_ORIGIN=http://localhost:5173
-UPLOAD_DIR=./uploads
 ```
 
-In `apps/web/.env`, use:
+Create the repository-root `.env` for the frontend (if it does not already
+exist), based on the web example:
+
+```powershell
+if (-not (Test-Path .\.env)) { Copy-Item .\apps\web\.env.example .\.env }
+notepad .\.env
+```
+
+Set or retain:
 
 ```dotenv
 PUBLIC_API_URL=http://localhost:3000
 ```
 
-`DATABASE_URL`, `PORT`, `WEB_ORIGIN`, and `UPLOAD_DIR` are API-side
-configuration. `PUBLIC_API_URL` is read by the Vite/SvelteKit client and is
-intended to be public; do not put credentials or secrets in `PUBLIC_` values.
-The API runtime and importer load `apps/api/.env`; the web app loads
-`apps/web/.env`. These local `.env` files are ignored by Git.
+All `.env` files are ignored by Git; do not commit credentials. The tracked
+`.env.example` files contain local-development examples, not secrets.
 
-### 5. Apply database migrations
+### 5. Migrate and start the application
 
-Run from the repository root after PostgreSQL and the API environment are
-ready:
+From the repository root, run the migration and start the API and frontend in
+separate PowerShell windows:
 
 ```powershell
 pnpm db:migrate
 ```
 
-This runs the API's `drizzle-kit migrate` command. It creates or updates the
-tables expected by the application and importer; do not restore a developer's
-database dump or run a database reset as part of normal setup.
-
-### 6. Validate and import product data
-
-Run the importer in dry-run mode first. It reads
-`data/raw/packaged_foods_india_cleaned.csv`, validates its required columns,
-and does not connect to or change PostgreSQL in dry-run mode. It reports
-missing or invalid numeric values; review those messages before applying,
-because rejected numeric values are imported as `NULL` rather than corrected:
-
-```powershell
-python .\script\load_postgres.py
-```
-
-To load it, first verify the CSV's nutrient basis from authoritative source
-documentation. The importer requires an explicit `per_serving` or `per_100g`
-choice and does not determine which one is correct. Only after verification,
-run **one** matching command:
-
-```powershell
-python .\script\load_postgres.py --apply --nutrition-basis per_serving
-```
-
-or:
-
-```powershell
-python .\script\load_postgres.py --apply --nutrition-basis per_100g
-```
-
-The importer checks the migrated schema and required foreign keys, writes in a
-transaction, and creates a logical CSV export of affected tables under
-`data/backups/` before applying changes. These exports are not full database
-backups. CSV fields are authoritative when present in the importer mapping;
-missing source values may clear their corresponding product/nutrition fields
-or category links. Re-running `--apply` re-applies those values, so do it
-deliberately. Migrations and CSV import are one-time setup steps for a new
-local database; rerun migrations when the project adds migrations, and rerun
-the importer when intentionally refreshing imported data.
-
-If no reliable source establishes the nutrition basis, do not run the `--apply`
-command. The web app and API can still start, but product data will not be
-loaded into that database.
-
-### 7. Start the API and frontend
-
-Use two terminals, each opened at the repository root.
-
-**Terminal 1 — API:**
-
 ```powershell
 pnpm dev:api
 ```
-
-**Terminal 2 — frontend:**
 
 ```powershell
 pnpm dev:web
 ```
 
-The frontend is at <http://localhost:5173>; the API is at
-<http://localhost:3000>.
+The frontend is at <http://localhost:5173>, the API is at
+<http://localhost:3000>, and its health endpoint is
+<http://localhost:3000/api/health>.
 
-## Verify setup and run checks
+## Setup on Ubuntu (Bash)
 
-From the repository root, with the Python virtual environment activated:
+### 1. Install Git, Node.js, pnpm, and PostgreSQL
 
-```powershell
-Invoke-RestMethod http://localhost:3000/api/health
-pnpm check
-pnpm lint
-pnpm test:unit
-pnpm test:integration
-pnpm build
+Install Git, curl, build tools, Python tooling, and PostgreSQL utilities:
+
+```bash
+sudo apt update
+sudo apt install -y git curl build-essential python3 python3-venv python3-pip postgresql-common
 ```
 
-The health endpoint should report `status: ok` and `database: connected`.
-After a successful data import, product results should be available through
-the discovery page at <http://localhost:5173/discover>. The integration test
-requires a running PostgreSQL instance configured with the same
-`DATABASE_URL`. `pnpm test:unit` runs frontend, API, and Python unit tests;
-`pnpm test` runs unit and integration tests. There are no configured browser
-end-to-end tests.
+Install PostgreSQL 17 from the PostgreSQL Apt Repository, matching the CI
+version:
 
-Available root commands include:
+```bash
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+sudo apt update
+sudo apt install -y postgresql-17 postgresql-client-17
+```
 
-| Command                 | Purpose                                          |
-| ----------------------- | ------------------------------------------------ |
-| `pnpm dev:api`          | Start the API in watch mode                      |
-| `pnpm dev:web`          | Start the frontend dev server                    |
-| `pnpm db:migrate`       | Apply Drizzle SQL migrations                     |
-| `pnpm check`            | Svelte checks and API TypeScript typecheck       |
-| `pnpm lint`             | Frontend Prettier and ESLint checks              |
-| `pnpm test:unit`        | Frontend, API, and Python unit tests             |
-| `pnpm test:integration` | API/PostgreSQL integration check                 |
-| `pnpm test`             | Unit tests followed by integration test          |
-| `pnpm build`            | Build frontend and API                           |
-| `pnpm db:generate`      | Generate a migration from Drizzle schema changes |
+Install Node.js 24 with `nvm`, then enable pnpm 10 using Corepack:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.bashrc
+nvm install 24
+nvm use 24
+corepack enable
+corepack prepare pnpm@10 --activate
+```
+
+Verify the tools:
+
+```bash
+git --version
+node --version
+pnpm --version
+psql --version
+```
+
+### 2. Start PostgreSQL and create a development database
+
+Enable and start the PostgreSQL service:
+
+```bash
+sudo systemctl enable --now postgresql
+systemctl status postgresql --no-pager
+```
+
+Create a role with a local password and an empty database owned by that role:
+
+```bash
+sudo -u postgres psql <<'SQL'
+CREATE ROLE nutrascore LOGIN PASSWORD '<choose-a-local-password>';
+CREATE DATABASE nutrascore OWNER nutrascore;
+CREATE DATABASE nutrascore_test OWNER nutrascore;
+SQL
+```
+
+Connect using TCP (`localhost`) and the role password; the setup expects
+PostgreSQL to accept password authentication for local TCP connections.
+The second database is reserved for integration tests.
+
+### 3. Clone the repository and install dependencies
+
+```bash
+git clone https://github.com/Nutrascore/nutrascore.git
+cd nutrascore
+pnpm install --frozen-lockfile
+```
+
+### 4. Configure environment files
+
+Create the API environment file:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+${EDITOR:-nano} apps/api/.env
+```
+
+Set the database URL to the local role and database. URL-encode reserved
+characters in the password:
+
+```dotenv
+DATABASE_URL=postgresql://nutrascore:<URL-encoded-password>@localhost:5432/nutrascore
+PORT=3000
+WEB_ORIGIN=http://localhost:5173
+```
+
+Create the repository-root `.env` used by the frontend:
+
+```bash
+if [ ! -f .env ]; then cp apps/web/.env.example .env; fi
+${EDITOR:-nano} .env
+```
+
+Set or retain:
+
+```dotenv
+PUBLIC_API_URL=http://localhost:3000
+```
+
+The API reads the root `.env` and then `apps/api/.env`; Vite reads the root
+`.env`. All `.env` files are ignored by Git. Never commit credentials.
+
+### 5. Migrate and start the application
+
+From the repository root, run the migration and start each server in a
+separate terminal:
+
+```bash
+pnpm db:migrate
+```
+
+```bash
+pnpm dev:api
+```
+
+```bash
+pnpm dev:web
+```
+
+The frontend is at <http://localhost:5173>, the API is at
+<http://localhost:3000>, and its health endpoint is
+<http://localhost:3000/api/health>.
+
+## Database setup and migrations
+
+### Fresh installation
+
+1. Install and start PostgreSQL.
+2. Create an empty database and PostgreSQL role.
+3. Configure `DATABASE_URL` in `apps/api/.env`.
+4. Install dependencies with `pnpm install --frozen-lockfile`.
+5. Run `pnpm db:migrate` from the repository root.
+
+The current Drizzle journal contains the consolidated
+[`0000_baseline.sql`](./apps/api/drizzle/0000_baseline.sql) migration. On a
+fresh database it creates the five application tables, their current columns,
+constraints, foreign keys, and indexes. It does **not** load product records.
+Use the optional CSV import workflow below if you intentionally want to load
+the provided dataset.
+
+### Existing installation
+
+Run `pnpm db:migrate` to apply migrations that Drizzle identifies as pending.
+The consolidated baseline is the intended schema for fresh installs. For
+existing installations, its guarded compatibility logic checks current
+definitions and stops on incompatible schema objects rather than attempting
+an unsafe conversion. If a populated database is involved, make and verify a
+backup before applying migrations; investigate any migration error instead of
+dropping tables, resetting data, or changing migration history.
+
+Where the expected legacy `"Nutrition"` or `"ProductImages"` table exists,
+the baseline copies its product-linked nutrition values or primary image URL
+into corresponding `"Products"` fields only where those target fields are
+NULL. It does not automatically delete legacy tables or their historical
+records. The baseline preserves compatible existing data and does not
+recreate a populated database.
+
+## Optional CSV data tools
+
+The cleaned source used by the current loader is
+[`data/processed/packaged_foods_india_cleaned.csv`](./data/processed/packaged_foods_india_cleaned.csv).
+The fresh database is empty until data is imported.
+
+Install Python dependencies if using these tools:
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt
+```
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-test.txt
+```
+
+The database import/sync scripts read `DATABASE_URL` from `apps/api/.env`.
+`validate_dataset.py` checks the CSV without changing it. The default
+`load_postgres.py` command is a dry run: it connects to check the database
+schema and report the proposed import, but does not write database records.
+Review its output:
+
+```powershell
+.\.venv\Scripts\python.exe .\script\validate_dataset.py
+.\.venv\Scripts\python.exe .\script\load_postgres.py
+```
+
+```bash
+source .venv/bin/activate
+python script/validate_dataset.py
+python script/load_postgres.py
+```
+
+The CSV does not establish whether nutrient values are per serving or per
+100 g. Only after verifying the basis from a reliable source, choose one of
+these matching commands:
+
+**If the verified basis is per serving:**
+
+```powershell
+.\.venv\Scripts\python.exe .\script\load_postgres.py --apply --nutrition-basis per_serving
+```
+
+```bash
+python script/load_postgres.py --apply --nutrition-basis per_serving
+```
+
+**If the verified basis is per 100 g:**
+
+```powershell
+.\.venv\Scripts\python.exe .\script\load_postgres.py --apply --nutrition-basis per_100g
+```
+
+```bash
+python script/load_postgres.py --apply --nutrition-basis per_100g
+```
+
+The loader uses a transaction and creates logical CSV exports of affected
+tables under `data/backups/`; these are not full database backups. CSV values,
+including missing mapped values, are authoritative for imported fields.
+Applying the import again deliberately re-synchronizes those fields.
+`script/sync_product_csv.py` is an additional utility for matching existing
+products to CSV rows and synchronizing selected CSV-owned values; it also
+requires an explicitly verified nutrition basis before applying updates.
+
+The CSV does not own product image URLs. Do not infer nutrition units from
+column names or serving size. Dataset ownership and redistribution terms
+should be confirmed with the original data source before redistributing it.
+
+## Development commands
+
+Run these commands from the repository root:
+
+| Command                          | Purpose                                           |
+| -------------------------------- | ------------------------------------------------- |
+| `pnpm install --frozen-lockfile` | Install the locked workspace dependencies.        |
+| `pnpm dev:api`                   | Start the Fastify API in watch mode.              |
+| `pnpm dev:web`                   | Start the SvelteKit development server.           |
+| `pnpm db:migrate`                | Apply pending Drizzle migrations.                 |
+| `pnpm lint`                      | Run ESLint for the frontend, API, and tests.      |
+| `pnpm format`                    | Check frontend formatting with Prettier.          |
+| `pnpm typecheck`                 | Run Svelte checks and the API TypeScript check.   |
+| `pnpm unit-test`                 | Run frontend, API, and Python unit tests.         |
+| `pnpm integration-test`          | Run the API/PostgreSQL integration workflow.      |
+| `pnpm test`                      | Run unit and integration tests.                   |
+| `pnpm check`                     | Run lint and typecheck.                           |
+| `pnpm build`                     | Build the frontend and API.                       |
+| `pnpm db:generate`               | Generate a migration from Drizzle schema changes. |
+
+Integration tests create and delete temporary records. They require a
+dedicated, migrated test database through `NUTRASCORE_TEST_DATABASE_URL` and
+refuse to run if it resolves to the configured development database. Migrate
+the test database with a temporary `DATABASE_URL` override, then restore or
+remove that override before running the test:
+
+```powershell
+$env:NUTRASCORE_TEST_DATABASE_URL = "postgresql://nutrascore:<password>@localhost:5432/nutrascore_test"
+$developmentDatabaseUrl = $env:DATABASE_URL
+$env:DATABASE_URL = $env:NUTRASCORE_TEST_DATABASE_URL
+pnpm db:migrate
+if ($null -eq $developmentDatabaseUrl) {
+    Remove-Item Env:DATABASE_URL
+} else {
+    $env:DATABASE_URL = $developmentDatabaseUrl
+}
+pnpm integration-test
+```
+
+```bash
+export NUTRASCORE_TEST_DATABASE_URL='postgresql://nutrascore:<password>@localhost:5432/nutrascore_test'
+DATABASE_URL="$NUTRASCORE_TEST_DATABASE_URL" pnpm db:migrate
+pnpm integration-test
+```
+
+## Environment variables
+
+| Variable                       | Required?                              | Purpose and example                                                                                            |
+| ------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                 | Yes for API, migrations, and CSV tools | PostgreSQL connection string, e.g. `postgresql://nutrascore:<URL-encoded-password>@localhost:5432/nutrascore`. |
+| `PORT`                         | No                                     | API listen port; defaults to `3000`.                                                                           |
+| `WEB_ORIGIN`                   | No                                     | Additional allowed frontend origin; defaults to `http://localhost:5173`.                                       |
+| `PUBLIC_API_URL`               | No                                     | Frontend API origin; defaults to `http://localhost:3000`.                                                      |
+| `NODE_ENV`                     | No                                     | Set to `production` to add the `Secure` attribute to auth cookies.                                             |
+| `NUTRASCORE_TEST_DATABASE_URL` | Yes for integration tests              | Dedicated, separately migrated test database URL; must not point to the configured development database.       |
+
+The API and Drizzle migration configuration use `DATABASE_URL`.
+`PUBLIC_API_URL` is intentionally public; never put credentials or secrets in
+it. For local setup, API settings can be placed in `apps/api/.env`, and
+`PUBLIC_API_URL` belongs in the repository-root `.env` because Vite's `envDir`
+is configured as the repository root. `.env` and `.env.*` are ignored by Git;
+the `.env.example` files are tracked templates.
+
+## Project structure
+
+```text
+apps/
+  api/
+    drizzle/              Consolidated SQL baseline and Drizzle metadata
+    src/
+      db/                 Drizzle schema, PostgreSQL pool, product query
+      routes/             Product, search, category, compare, auth, moderator
+  web/
+    src/
+      lib/                API clients, shared components, stores, utilities
+      routes/             Home, discover, product, compare, login, register,
+                          profile, moderator pages
+    static/               Static frontend assets
+data/
+  processed/              Cleaned product CSV used by import tools
+script/                   Dataset validation and PostgreSQL CSV utilities
+tests/
+  integration/            API integration workflow using a separate database
+  unit/                   Frontend, API, and Python unit tests
+docs/
+  software-design/        Data dictionary, DFDs, and structure chart
+```
 
 ## Troubleshooting
 
-- **PostgreSQL connection refused:** ensure the local PostgreSQL service is
-  running and listening on port 5432. Check the host, port, database, role,
-  and password in `DATABASE_URL`.
-- **PostgreSQL authentication failed:** verify the local role password and
-  update `apps/api/.env`. URL-encode reserved characters in the password
-  portion of the connection URL.
-- **`DATABASE_URL` is missing or migrations fail to connect:** check
-  `apps/api/.env` and run commands from the repository root. Ensure the
-  database exists before `pnpm db:migrate`.
-- **Missing required table/foreign key during import:** apply
-  `pnpm db:migrate` first, then retry the importer dry run.
-- **Cleaned CSV not found:** the importer currently requires
-  `data/raw/packaged_foods_india_cleaned.csv`; it does not read the
-  `data/processed/` copy. Confirm the raw cleaned CSV exists in the clone.
-- **Importer rejects `--apply`:** verify the nutrition basis independently
-  and choose exactly `per_serving` or `per_100g`. Do not guess from column
-  names or serving size.
-- **Port already in use:** stop the process using the occupied port or choose
-  another API `PORT`. If the API port changes, update `PUBLIC_API_URL`; if the
-  frontend origin changes, update `WEB_ORIGIN` to match it.
-- **Frontend cannot reach the API:** verify the API health endpoint and the
-  `PUBLIC_API_URL` in `apps/web/.env`; ensure `WEB_ORIGIN` in
-  `apps/api/.env` matches the frontend origin.
-- **`pnpm` command not found:** install Node.js 24, then run `corepack enable`
-  and `corepack prepare pnpm@10 --activate`.
-- **Python module missing:** activate `.venv` and run
-  `python -m pip install -r requirements-test.txt`.
-- **JavaScript dependency or lockfile error:** run
-  `pnpm install --frozen-lockfile` from the repository root using pnpm 10.
+### PostgreSQL connection failures
+
+- **Windows:** Check `Get-Service *postgres*`, start the installed service,
+  and verify `psql --version`. Use the actual service name and confirm
+  PostgreSQL listens on the host and port in `DATABASE_URL`.
+- **Ubuntu:** Check `systemctl status postgresql --no-pager`; start it with
+  `sudo systemctl start postgresql`. Use `sudo -u postgres psql` to inspect
+  local roles and databases.
+- For password authentication failures, verify the role password and URL.
+  URL-encode reserved characters in the password component.
+
+### Migration errors or incorrect `DATABASE_URL`
+
+Confirm the database exists, the selected role can connect, and
+`apps/api/.env` contains the intended URL. The API loads the repository-root
+`.env` before `apps/api/.env`, so an already defined root value takes
+precedence. Verify the target carefully before running `pnpm db:migrate`.
+If the baseline reports an incompatible schema, stop and investigate; do not
+drop tables, truncate rows, or rewrite migration history.
+
+### Port conflicts
+
+The defaults are API port `3000` and frontend port `5173`. Set `PORT` to a
+free API port and update `PUBLIC_API_URL` to match. If the frontend origin
+changes, update `WEB_ORIGIN` to allow that origin in the API.
+
+### Frontend cannot communicate with the API
+
+Check <http://localhost:3000/api/health>, set `PUBLIC_API_URL` in the
+repository-root `.env`, and ensure `WEB_ORIGIN` in the API environment matches
+the frontend's origin. Restart the dev server after changing environment
+files.
+
+### pnpm or missing environment variables
+
+Use Node.js 24, then run `corepack enable` and
+`corepack prepare pnpm@10 --activate`. If a command reports a missing
+`DATABASE_URL`, check the API environment file and confirm the command is
+being run from the repository root.
+
+### Python dependencies or missing CSV
+
+Activate `.venv` and run `python -m pip install -r requirements-test.txt`.
+Confirm the cleaned dataset exists at
+`data/processed/packaged_foods_india_cleaned.csv`.
 
 ## Further documentation
 
+- [Authentication and moderator administration](./docs/authentication.md)
 - [Software design documentation index](./docs/software-design/README.md)
-- [DFD Level 0 — context](./docs/software-design/dfd-level-0.md)
+- [DFD Level 0](./docs/software-design/dfd-level-0.md)
 - [DFD Level 1](./docs/software-design/dfd-level-1.md)
 - [DFD Level 2](./docs/software-design/dfd-level-2.md)
-- [Structure Chart](./docs/software-design/structure-chart.md)
-- [Data Dictionary](./docs/software-design/data-dictionary.md)
-- [Authentication and moderator administration](./docs/authentication.md)
+- [Structure chart](./docs/software-design/structure-chart.md)
+- [Data dictionary](./docs/software-design/data-dictionary.md)

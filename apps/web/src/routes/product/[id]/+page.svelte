@@ -9,7 +9,6 @@
 	let product = $state<Product | null>(null);
 	let loading = $state(true);
 	let error = $state('');
-	let actionError = $state('');
 	let nutritionMode = $state<NutritionDisplayBasis>('per100g');
 
 	let productId = $derived(page.params.id);
@@ -161,25 +160,9 @@
 					<strong>{formatPrice(product.priceInr)}</strong>
 				</p>
 
-				<div class="labels">
-					{#if product.nutriScore}
-						<span>
-							Nutri-Score {product.nutriScore.toUpperCase()}
-						</span>
-					{/if}
-
-					{#if product.novaGroup}
-						<span>
-							NOVA {product.novaGroup}
-						</span>
-					{/if}
-				</div>
-
 				<button type="button" class="compare-button" onclick={addToCompare}>
 					{isSelectedForCompare ? 'Remove from Compare' : 'Add to Compare'}
 				</button>
-
-				{#if actionError}<p class="action-error">{actionError}</p>{/if}
 			</div>
 		</section>
 
@@ -336,20 +319,6 @@
 		font-size: 24px;
 	}
 
-	.labels {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-		margin-bottom: 25px;
-	}
-
-	.labels span {
-		padding: 7px 12px;
-		border-radius: 20px;
-		background: #f5f5f5;
-		font-size: 14px;
-	}
-
 	.compare-button {
 		padding: 12px 20px;
 		border: none;
@@ -358,11 +327,6 @@
 		color: white;
 		font-size: 15px;
 		cursor: pointer;
-	}
-
-	.action-error {
-		color: #a32626;
-		font-size: 14px;
 	}
 
 	.details-grid {

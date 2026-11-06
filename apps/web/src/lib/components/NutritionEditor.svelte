@@ -26,6 +26,7 @@
 	<label>
 		Values are for
 		<select bind:value={nutrition.basis}>
+			<option value="unknown">Unknown</option>
 			<option value="perServing">Per serving</option>
 			<option value="per100g">Per 100 g</option>
 		</select>

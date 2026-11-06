@@ -28,8 +28,6 @@ export interface Product {
 	name: string;
 	brand: string | null;
 	ingredients: string | null;
-	nutriScore: string | null;
-	novaGroup: number | null;
 	priceInr: number | null;
 	imageUrl: string | null;
 	categories: string[];
@@ -40,8 +38,6 @@ export interface ProductSummary {
 	id: string;
 	name: string;
 	brand: string | null;
-	nutriScore: string | null;
-	novaGroup: number | null;
 	priceInr?: number | null;
 	imageUrl: string | null;
 	category: string | null;
@@ -64,9 +60,7 @@ export interface ModeratorProduct {
 	name: string;
 	brand: string | null;
 	category: string;
-	image_url: string | null;
-	source_url: string | null;
-	review_status: string | null;
+	imageUrl: string | null;
 }
 
 export interface ModeratorProductDetails {
@@ -75,6 +69,7 @@ export interface ModeratorProductDetails {
 	brand: string | null;
 	ingredients: string | null;
 	priceInr: string | null;
+	imageUrl: string | null;
 	nutrition: Nutrition | null;
 }
 
@@ -84,7 +79,7 @@ export interface CreateModeratorProductInput {
 	categoryId: string | null;
 	ingredients: string | null;
 	priceInr: string | null;
-	imageUrl: string | null;
+	imageUrl?: string | null;
 	nutrition: Nutrition;
 }
 

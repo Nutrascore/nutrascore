@@ -5,11 +5,13 @@
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api dev",
-    "check": "pnpm --filter web check && pnpm --filter api typecheck",
-    "lint": "pnpm --filter web lint",
-    "test": "pnpm test:unit && pnpm test:integration",
-    "test:unit": "pnpm --filter web test:unit && pnpm --filter api test:unit && python -m unittest discover -s tests/unit/scripts -p \"test_*.py\"",
-    "test:integration": "pnpm --filter api test:integration",
+    "lint": "pnpm --filter web lint && node apps/web/node_modules/eslint/bin/eslint.js --config apps/web/eslint.config.js apps/api/src tests",
+    "format": "pnpm --filter web format",
+    "typecheck": "pnpm --filter web check && pnpm --filter api typecheck",
+    "check": "pnpm lint && pnpm typecheck",
+    "test": "pnpm unit-test && pnpm integration-test",
+    "unit-test": "pnpm --filter web test:unit && pnpm --filter api test:unit && python -m unittest discover -s tests/unit/scripts -p \"test_*.py\"",
+    "integration-test": "pnpm --filter api test:integration",
     "build": "pnpm --filter web build && pnpm --filter api build",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate"

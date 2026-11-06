@@ -16,7 +16,7 @@ export const moderatorNutritionFields = [
 ] as const;
 
 export const moderatorServingUnits = ['g', 'ml', 'oz', 'piece', 'serving'] as const;
-export const moderatorNutritionBases = ['perServing', 'per100g'] as const;
+export const moderatorNutritionBases = ['unknown', 'perServing', 'per100g'] as const;
 
 export function parseModeratorPrice(value: unknown): { priceInr: string | null; error?: string } {
 	if (value === null || value === undefined) return { priceInr: null };
@@ -33,6 +33,10 @@ export function parseModeratorPrice(value: unknown): { priceInr: string | null; 
 
 export function normalizeProductMatch(value: string | null | undefined): string {
 	return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function productMatchLockKey(name: string | null | undefined, brand: string | null | undefined): string {
+	return JSON.stringify([normalizeProductMatch(name), normalizeProductMatch(brand)]);
 }
 
 export function parseModeratorNutrition(
@@ -57,7 +61,7 @@ export function parseModeratorNutrition(
 				values,
 				servingUnit: null,
 				vitamins: null,
-				basis: 'per100g',
+				basis: 'unknown',
 				error: `${field} must be a non-negative number.`,
 			};
 		}
@@ -70,21 +74,21 @@ export function parseModeratorNutrition(
 			values,
 			servingUnit: null,
 			vitamins: null,
-			basis: 'per100g',
+			basis: 'unknown',
 			error: 'Serving unit must be g, ml, oz, piece, or serving.',
 		};
 	}
 	const rawBasis = nutrition?.basis;
 	const basis = rawBasis == null
-		? 'per100g'
+		? 'unknown'
 		: String(rawBasis) as (typeof moderatorNutritionBases)[number];
 	if (!moderatorNutritionBases.includes(basis)) {
 		return {
 			values,
 			servingUnit,
 			vitamins: null,
-			basis: 'per100g',
-			error: 'Nutrition basis must be Per serving or Per 100 g.',
+			basis: 'unknown',
+			error: 'Nutrition basis must be unknown, Per serving, or Per 100 g.',
 		};
 	}
 	const rawVitamins = nutrition?.vitamins;
@@ -105,6 +109,18 @@ export function parseModeratorNutrition(
 			vitamins: null,
 			basis,
 			error: 'vitamins must be 10000 characters or fewer.',
+		};
+	}
+	const hasNutrientValues = moderatorNutritionFields
+		.filter((field) => field !== 'servingSize')
+		.some((field) => values[field] !== null) || vitamins !== null;
+	if (basis === 'unknown' && hasNutrientValues) {
+		return {
+			values,
+			servingUnit,
+			vitamins,
+			basis,
+			error: 'Choose a nutrition basis before entering nutrient values.',
 		};
 	}
 	return { values, servingUnit, vitamins, basis };

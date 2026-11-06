@@ -6,13 +6,14 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import re
 from pathlib import Path
+from typing import TypedDict
 import unicodedata
 
 import psycopg
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-CSV_PATH = ROOT_DIR / "data" / "raw" / "packaged_foods_india.csv"
+CSV_PATH = ROOT_DIR / "data" / "processed" / "packaged_foods_india_cleaned.csv"
 ENV_PATH = ROOT_DIR / "apps" / "api" / ".env"
 REPORT_DIR = ROOT_DIR / "data" / "reports"
 
@@ -46,6 +47,27 @@ NUTRITION_COLUMNS = tuple(NUMERIC_FIELDS.values()) + (
     "nutrition_basis",
 )
 NUTRITION_SELECT = ", ".join(NUTRITION_COLUMNS)
+
+
+class ExistingProduct(TypedDict):
+    id: str
+    name: str
+    brand: str | None
+
+
+class ProductMatch(TypedDict):
+    source_row: str
+    source_serial: str
+    item_name: str
+    brand: str
+    price_inr: str
+    serving_size_g: str
+    status: str
+    product_id: str
+    matched_name: str
+    reason: str
+    csv: dict[str, str]
+    product: ExistingProduct | None
 
 
 def normalize(value: object) -> str:
@@ -109,16 +131,16 @@ def load_csv() -> list[dict[str, str]]:
 
 def match_products(
     csv_rows: list[dict[str, str]],
-    products: list[dict[str, object]],
-) -> list[dict[str, object]]:
+    products: list[ExistingProduct],
+) -> list[ProductMatch]:
     csv_by_key: dict[tuple[str, str], list[dict[str, str]]] = {}
-    products_by_key: dict[tuple[str, str], list[dict[str, object]]] = {}
+    products_by_key: dict[tuple[str, str], list[ExistingProduct]] = {}
     for row in csv_rows:
         csv_by_key.setdefault(product_key(row.get("Item name"), row.get("Brand_Name")), []).append(row)
     for product in products:
         products_by_key.setdefault(product_key(product["name"], product["brand"]), []).append(product)
 
-    report = []
+    report: list[ProductMatch] = []
     for row in csv_rows:
         key = product_key(row.get("Item name"), row.get("Brand_Name"))
         row_group = csv_by_key[key]
@@ -175,8 +197,7 @@ def write_report(report: list[dict[str, object]]) -> Path:
 
 def validate_schema(connection: psycopg.Connection) -> None:
     required = {
-        "Products": {"id", "name", "brand", "price_inr", "updated_at"},
-        "Nutrition": {"product_id", *NUTRITION_COLUMNS},
+        "Products": {"id", "name", "brand", "price_inr", *NUTRITION_COLUMNS},
     }
     with connection.cursor() as cursor:
         cursor.execute(
@@ -184,7 +205,7 @@ def validate_schema(connection: psycopg.Connection) -> None:
             SELECT table_name, column_name
             FROM information_schema.columns
             WHERE table_schema = 'public'
-              AND table_name IN ('Products', 'Nutrition')
+              AND table_name = 'Products'
             """
         )
         actual: dict[str, set[str]] = {}
@@ -199,7 +220,7 @@ def validate_schema(connection: psycopg.Connection) -> None:
         raise RuntimeError(f"Required PostgreSQL columns are missing: {', '.join(missing)}")
 
 
-def fetch_products(connection: psycopg.Connection) -> list[dict[str, object]]:
+def fetch_products(connection: psycopg.Connection) -> list[ExistingProduct]:
     with connection.cursor() as cursor:
         cursor.execute('SELECT id::text AS id, name, brand FROM "Products"')
         return [
@@ -213,8 +234,8 @@ def current_nutrition(connection: psycopg.Connection, product_id: str) -> dict[s
         cursor.execute(
             f"""
             SELECT {NUTRITION_SELECT}
-            FROM "Nutrition"
-            WHERE product_id = %s::uuid
+            FROM "Products"
+            WHERE id = %s::uuid
             FOR UPDATE
             """,
             (product_id,),
@@ -226,63 +247,36 @@ def current_nutrition(connection: psycopg.Connection, product_id: str) -> dict[s
 def serving_amounts(
     row: dict[str, str],
     existing: dict[str, object],
+    source_basis: str | None,
 ) -> tuple[dict[str, object] | None, str | None]:
     basis = existing["nutrition_basis"]
     if basis not in {"per_100g", "per_serving"}:
         return None, f"Unsupported existing nutrition basis: {basis!r}"
-
-    csv_serving = parse_numeric(row.get("Serving_Size_g"), positive=True)
-    existing_serving = parse_numeric(existing["serving_size"], positive=True)
-    if csv_serving is not None:
-        serving_size = csv_serving
-        serving_unit = "g"
-    elif existing_serving is not None and str(existing["serving_unit"] or "").strip().casefold() == "g":
-        serving_size = existing_serving
-        serving_unit = existing["serving_unit"]
-    else:
-        return None, "No valid serving size in grams is available for a consistent nutrition basis."
-
-    def preserve_value(value: object, column: str) -> object:
-        if value is None or basis == "per_serving":
-            return value
-        numeric = parse_numeric(value)
-        if numeric is None:
-            raise ValueError(f"Existing {column} cannot be converted from per 100 g.")
-        return numeric * serving_size / Decimal(100)
+    if source_basis not in {"per_100g", "per_serving"}:
+        return None, "CSV nutrition basis is unspecified; no nutrition values were changed."
+    if source_basis != basis:
+        return None, f"CSV basis {source_basis} differs from existing basis {basis}; no conversion was attempted."
 
     values: dict[str, object] = {}
-    try:
-        for csv_column, database_column in NUMERIC_FIELDS.items():
-            source_value = parse_numeric(row.get(csv_column))
-            old_value = existing[database_column]
-            values[database_column] = (
-                source_value if source_value is not None
-                else preserve_value(old_value, database_column)
-            )
-
-        values["salt_g"] = preserve_value(existing["salt_g"], "salt_g")
-
-        source_vitamins = clean_text(row.get("Vitamin"))
-        old_vitamins = existing["vitamins"]
-        if source_vitamins is not None:
-            values["vitamins"] = source_vitamins
-        elif old_vitamins is None or basis == "per_serving":
-            values["vitamins"] = old_vitamins
-        else:
-            old_numeric_vitamins = parse_numeric(old_vitamins)
-            if old_numeric_vitamins is None:
-                raise ValueError("Existing vitamin text cannot be converted from per 100 g.")
-            values["vitamins"] = str(old_numeric_vitamins * serving_size / Decimal(100))
-    except ValueError as error:
-        return None, str(error)
-
-    values["serving_size"] = serving_size
-    values["serving_unit"] = serving_unit
-    values["nutrition_basis"] = "per_serving"
+    for csv_column, database_column in NUMERIC_FIELDS.items():
+        source_value = parse_numeric(row.get(csv_column))
+        values[database_column] = (
+            source_value if source_value is not None else existing[database_column]
+        )
+    values["salt_g"] = existing["salt_g"]
+    values["vitamins"] = clean_text(row.get("Vitamin")) or existing["vitamins"]
+    serving_size = parse_numeric(row.get("Serving_Size_g"), positive=True)
+    values["serving_size"] = serving_size if serving_size is not None else existing["serving_size"]
+    values["serving_unit"] = "g" if serving_size is not None else existing["serving_unit"]
+    values["nutrition_basis"] = source_basis
     return values, None
 
 
-def synchronize(connection: psycopg.Connection, report: list[dict[str, object]]) -> dict[str, int]:
+def synchronize(
+    connection: psycopg.Connection,
+    report: list[ProductMatch],
+    source_basis: str,
+) -> dict[str, int]:
     counts = {
         "updated_products": 0,
         "prices_populated": 0,
@@ -299,6 +293,8 @@ def synchronize(connection: psycopg.Connection, report: list[dict[str, object]])
             row = match["csv"]
             product_id = match["product_id"]
             product = match["product"]
+            if product is None:
+                raise RuntimeError(f"Matched CSV row {match['source_row']} has no product record.")
             source_price = parse_numeric(row.get("Price_INR"))
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -313,7 +309,7 @@ def synchronize(connection: psycopg.Connection, report: list[dict[str, object]])
             if source_price is not None and source_price != old_price:
                 with connection.cursor() as cursor:
                     cursor.execute(
-                        'UPDATE "Products" SET price_inr = %s, updated_at = now() WHERE id = %s::uuid',
+                        'UPDATE "Products" SET price_inr = %s WHERE id = %s::uuid',
                         (source_price, product_id),
                     )
                 product_changed = True
@@ -329,7 +325,7 @@ def synchronize(connection: psycopg.Connection, report: list[dict[str, object]])
                     counts["updated_products"] += 1
                 continue
 
-            new_values, reason = serving_amounts(row, existing)
+            new_values, reason = serving_amounts(row, existing, source_basis)
             if new_values is None:
                 counts["nutrition_rows_skipped"] += 1
                 print(f"Nutrition skipped for {product['name']} ({product_id}): {reason}")
@@ -353,7 +349,7 @@ def synchronize(connection: psycopg.Connection, report: list[dict[str, object]])
                 columns = ", ".join(f'"{column}" = %s' for column in changes)
                 with connection.cursor() as cursor:
                     cursor.execute(
-                        f'UPDATE "Nutrition" SET {columns} WHERE product_id = %s::uuid',
+                        f'UPDATE "Products" SET {columns} WHERE id = %s::uuid',
                         (*changes.values(), product_id),
                     )
                 product_changed = True
@@ -371,7 +367,18 @@ def main() -> None:
         action="store_true",
         help="Apply updates. Without this option, only report matches and planned changes.",
     )
+    parser.add_argument(
+        "--nutrition-basis",
+        choices=("per_serving", "per_100g"),
+        help="Verified basis of the CSV nutrient amounts; required with --apply.",
+    )
     args = parser.parse_args()
+
+    if args.apply and args.nutrition_basis is None:
+        parser.error(
+            "the CSV has no nutrition-basis column; provide an explicitly "
+            "verified --nutrition-basis before applying"
+        )
 
     rows = load_csv()
     with psycopg.connect(read_database_url()) as connection:
@@ -380,13 +387,14 @@ def main() -> None:
         report_path = write_report(report)
         counts: dict[str, int] = {}
         if args.apply:
-            counts = synchronize(connection, report)
+            counts = synchronize(connection, report, args.nutrition_basis)
 
     status_counts = {
         status: sum(row["status"] == status for row in report)
         for status in ("matched", "ambiguous", "unmatched")
     }
     print(f"CSV rows: {len(rows)}")
+    print(f"Nutrition basis: {args.nutrition_basis or 'unspecified (nutrition updates will be skipped)'}")
     print(
         "Matching: "
         + ", ".join(f"{status}={count}" for status, count in status_counts.items())

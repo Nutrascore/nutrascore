@@ -3,12 +3,22 @@ import {
   normalizeProductMatch,
   parseModeratorNutrition,
   parseModeratorPrice,
+  productMatchLockKey,
 } from "../../../apps/api/src/routes/moderator-product-validation.js";
 
 describe("moderator product validation", () => {
   it("normalizes products and validates nutrition, serving, and price fields", () => {
     expect(normalizeProductMatch("  Choco  Bar ")).toBe("choco bar");
     expect(normalizeProductMatch(null)).toBe("");
+    expect(productMatchLockKey(" Choco Bar ", " Acme ")).toBe(
+      productMatchLockKey("choco  bar", "acme"),
+    );
+    expect(productMatchLockKey("name\u0000brand", null)).not.toContain(
+      "\u0000",
+    );
+    expect(productMatchLockKey("ab", "c")).not.toBe(
+      productMatchLockKey("a", "bc"),
+    );
     const result = parseModeratorNutrition({
       kcalPer100g: "123.4",
       proteinG: 4,
@@ -31,8 +41,12 @@ describe("moderator product validation", () => {
     expect(parseModeratorNutrition({ servingUnit: "packet" }).error).toContain(
       "Serving unit",
     );
-    expect(parseModeratorNutrition({ basis: "unknown" }).error).toContain(
-      "basis",
+    expect(parseModeratorNutrition({ basis: "unknown" }).error).toBeUndefined();
+    expect(parseModeratorNutrition({ kcalPer100g: "12" }).error).toContain(
+      "Choose a nutrition basis",
+    );
+    expect(parseModeratorNutrition({ kcalPer100g: "12", basis: "unknown" }).error).toContain(
+      "Choose a nutrition basis",
     );
     expect(parseModeratorNutrition({ vitamins: 3 }).error).toContain(
       "vitamins",

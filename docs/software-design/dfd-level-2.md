@@ -41,15 +41,11 @@ flowchart LR
     DETAIL(["Load product detail"])
     COMPARE(["Compare products"])
     P[(Products)]
-    N[(Nutrition)]
     CATS[(categories)]
     PC[(product_categories)]
-    I[(ProductImages)]
 
     C -->|query, page, pageSize, categories| SEARCH
     SEARCH -->|name and brand match; category filter| P
-    SEARCH --> N
-    SEARCH --> I
     SEARCH --> PC
     PC --> CATS
     SEARCH -->|paged summaries and total count| C
@@ -66,34 +62,29 @@ flowchart LR
     CATPROD --> CATS
     CATPROD --> PC
     CATPROD --> P
-    CATPROD --> N
-    CATPROD --> I
     CATPROD -->|category and paged products| C
 
     C -->|product ID| DETAIL
     DETAIL --> P
-    DETAIL --> N
     DETAIL --> PC
     PC --> CATS
-    DETAIL --> I
     DETAIL -->|product and nutrition details| C
 
-    C -->|two selected IDs; API accepts two to four| COMPARE
+    C -->|exactly two distinct product IDs| COMPARE
     COMPARE --> P
-    COMPARE --> N
     COMPARE --> PC
     PC --> CATS
-    COMPARE --> I
     COMPARE -->|product, nutrition, serving, and price values| C
 ```
 
 Search supports name/brand matching, pagination, and category filters.
 Category routes provide category lists and paginated products. Detail and
-comparison responses include nullable product price and nutrition values.
-The current web comparison store limits selection to two products; the API
-accepts between two and four IDs and rejects requests outside that range.
+comparison responses include nullable product price and nutrition values
+stored on each `Products` row.
+Both the web client and API require exactly two distinct product IDs for a
+comparison. Image URLs are returned as part of the product record.
 
-## Moderator product and image management
+## Moderator product management
 
 ```mermaid
 flowchart LR
@@ -101,17 +92,12 @@ flowchart LR
     AUTH(["Resolve session and authorize moderator"])
     VALIDATE(["Validate request and CSRF"])
     PRODUCTS(["List, create, update, or delete product"])
-    IMAGE(["Add, remove, or mark image for review"])
     HOST[Moderator-supplied image URL host]
     USERS[(Users)]
     SESS[(user_sessions)]
     P[(Products)]
-    N[(Nutrition)]
     C[(categories)]
     PC[(product_categories)]
-    I[(ProductImages)]
-    SOURCE[(product_image_sources)]
-    REVIEW[(product_image_reviews)]
 
     M -->|session cookie| AUTH
     AUTH --> SESS
@@ -120,36 +106,27 @@ flowchart LR
     M -->|request body and CSRF token| VALIDATE
     VALIDATE --> PRODUCTS
     PRODUCTS <--> P
-    PRODUCTS <--> N
     PRODUCTS <--> C
     PRODUCTS <--> PC
     PRODUCTS -->|operation result| M
 
-    VALIDATE --> IMAGE
-    IMAGE -->|HTTPS HEAD request| HOST
-    HOST -->|status and image content type| IMAGE
-    IMAGE <--> I
-    IMAGE <--> SOURCE
-    IMAGE <--> REVIEW
-    IMAGE -->|image or review result| M
+    PRODUCTS -->|HTTPS HEAD image URL validation| HOST
+    HOST -->|status and image content type| PRODUCTS
 ```
 
-Moderator endpoints list and create products, retrieve and update product
-details, delete products, and manage product images and review status.
-Moderator-supplied image URLs are checked for HTTPS and a reachable image
-response. No automated image search or image-enrichment task is part of this
-application flow.
+Moderator endpoints list, create, retrieve, update, and delete products.
+Create/edit requests can set or clear one optional image URL, which is checked
+for HTTPS and a reachable image response.
 
 ## Development-time CSV import
 
 ```mermaid
 flowchart LR
     A[Developer or data administrator]
-    CSV[(data/raw/packaged_foods_india_cleaned.csv)]
+    CSV[(data/processed/packaged_foods_india_cleaned.csv)]
     LOAD(["script/load_postgres.py<br/>validate and transform rows"])
     BASIS[Verified nutrition basis<br/>per_serving or per_100g]
     P[(Products)]
-    N[(Nutrition)]
     C[(categories)]
     PC[(product_categories)]
 
@@ -158,7 +135,7 @@ flowchart LR
     A -->|required with --apply; verified externally| BASIS
     BASIS -->|basis argument| LOAD
     LOAD -->|stable product IDs, names, brand, ingredients, price_inr| P
-    LOAD -->|nutrients, serving size, vitamins, basis| N
+    LOAD -->|nutrients, serving size, vitamins, basis| P
     LOAD -->|Category and Sub_Category names| C
     LOAD -->|product/category associations| PC
 ```

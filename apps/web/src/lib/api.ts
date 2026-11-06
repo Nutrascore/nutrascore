@@ -14,9 +14,6 @@ export {
 	deleteModeratorProduct,
 	getModeratorProduct,
 	getModeratorProducts,
-	markModeratorImageForReview,
-	removeModeratorImage,
-	updateModeratorImage,
 	updateModeratorProduct
 } from './api/moderator';
 
