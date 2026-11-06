@@ -1,9 +1,6 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import fastifyStatic from '@fastify/static';
-import path from 'node:path';
-import { mkdir } from 'node:fs/promises';
 
 import { pool } from './db/pool.js';
 
@@ -17,8 +14,6 @@ import moderatorRoutes from './routes/moderator.js';
 const app = Fastify({
 	logger: true,
 });
-
-const uploadDirectory = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'));
 
 // ============================================================
 // CORS
@@ -41,12 +36,6 @@ await app.register(cors, {
 	credentials: true,
 	methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 	allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
-});
-
-await mkdir(uploadDirectory, { recursive: true });
-await app.register(fastifyStatic, {
-	root: uploadDirectory,
-	prefix: '/uploads/',
 });
 
 // ============================================================

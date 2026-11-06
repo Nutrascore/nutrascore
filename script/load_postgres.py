@@ -32,7 +32,7 @@ import duckdb
 import pandas as pd
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-CSV_PATH = ROOT_DIR / "data" / "raw" / "packaged_foods_india_cleaned.csv"
+CSV_PATH = ROOT_DIR / "data" / "processed" / "packaged_foods_india_cleaned.csv"
 ENV_PATH = ROOT_DIR / "apps" / "api" / ".env"
 BACKUP_DIR = ROOT_DIR / "data" / "backups"
 
@@ -68,16 +68,12 @@ REQUIRED_COLUMNS = {
 
 PRODUCT_TABLES = (
     '"Products"',
-    '"Nutrition"',
-    '"ProductImages"',
     "product_categories",
     "categories",
 )
 
 REQUIRED_TABLES = {
     "Products",
-    "Nutrition",
-    "ProductImages",
     "categories",
     "product_categories",
 }
@@ -89,13 +85,9 @@ REQUIRED_COLUMNS_IN_DATABASE = {
         "brand",
         "ingredients",
         "price_inr",
-        "created_at",
-        "updated_at",
-    },
-    "Nutrition": {
-        "id",
-        "product_id",
+        "image_url",
         *NUMERIC_MAP.values(),
+        "salt_g",
         "serving_size",
         "serving_unit",
         "nutrition_basis",
@@ -379,8 +371,6 @@ def validate_schema(con) -> None:
         """
     ).fetchall()
     required_relationships = {
-        ("Nutrition", "product_id", "Products", "id"),
-        ("ProductImages", "product_id", "Products", "id"),
         ("product_categories", "product_id", "Products", "id"),
         ("product_categories", "category_id", "categories", "id"),
     }
@@ -418,30 +408,26 @@ def upsert_products(con, products_df, nutrition_df, categories_df, links_df) -> 
         con.execute(
             """
             INSERT INTO postgres_db."Products"
-              (id, name, brand, ingredients, price_inr, created_at, updated_at)
-            SELECT id, name, brand, ingredients, price_inr, now(), now()
-            FROM incoming_products
+              (id, name, brand, ingredients, price_inr,
+               kcal_per_100g, fat_g, saturated_fat_g, trans_fat_g,
+               carbohydrates_g, sugars_g, fibre_g, protein_g, sodium_mg,
+               cholesterol_mg, calcium_mg, iron_mg, vitamins, serving_size,
+               serving_unit, nutrition_basis)
+            SELECT products.id, products.name, products.brand, products.ingredients,
+              products.price_inr, nutrition.kcal_per_100g, nutrition.fat_g,
+              nutrition.saturated_fat_g, nutrition.trans_fat_g,
+              nutrition.carbohydrates_g, nutrition.sugars_g, nutrition.fibre_g,
+              nutrition.protein_g, nutrition.sodium_mg, nutrition.cholesterol_mg,
+              nutrition.calcium_mg, nutrition.iron_mg, nutrition.vitamins,
+              nutrition.serving_size, nutrition.serving_unit, nutrition.nutrition_basis
+            FROM incoming_products AS products
+            INNER JOIN incoming_nutrition AS nutrition
+              ON nutrition.product_id = products.id
             ON CONFLICT (id) DO UPDATE SET
               name = EXCLUDED.name,
               brand = EXCLUDED.brand,
               ingredients = EXCLUDED.ingredients,
               price_inr = EXCLUDED.price_inr,
-              updated_at = now()
-            """
-        )
-        con.execute(
-            """
-            INSERT INTO postgres_db."Nutrition"
-              (id, product_id, kcal_per_100g, fat_g, saturated_fat_g,
-               trans_fat_g, carbohydrates_g, sugars_g, fibre_g,
-               protein_g, sodium_mg, cholesterol_mg, calcium_mg, iron_mg,
-               vitamins, serving_size, serving_unit, nutrition_basis)
-            SELECT id, product_id, kcal_per_100g, fat_g, saturated_fat_g,
-              trans_fat_g, carbohydrates_g, sugars_g, fibre_g,
-              protein_g, sodium_mg, cholesterol_mg, calcium_mg, iron_mg,
-              vitamins, serving_size, serving_unit, nutrition_basis
-            FROM incoming_nutrition
-            ON CONFLICT (product_id) DO UPDATE SET
               kcal_per_100g = EXCLUDED.kcal_per_100g,
               fat_g = EXCLUDED.fat_g,
               saturated_fat_g = EXCLUDED.saturated_fat_g,
@@ -526,8 +512,9 @@ def upsert_products(con, products_df, nutrition_df, categories_df, links_df) -> 
         imported_nutrition_count = con.execute(
             """
             SELECT COUNT(*)
-            FROM postgres_db."Nutrition" AS nutrition
-            JOIN incoming_nutrition AS incoming USING (product_id)
+            FROM postgres_db."Products" AS products
+            JOIN incoming_nutrition AS incoming
+              ON incoming.product_id = products.id
             """
         ).fetchone()[0]
         if imported_nutrition_count != len(nutrition_df):
@@ -619,7 +606,7 @@ def main() -> None:
             'SELECT COUNT(*) FROM postgres_db."Products"'
         ).fetchone()[0]
         nutrition_count = con.execute(
-            'SELECT COUNT(*) FROM postgres_db."Nutrition"'
+            'SELECT COUNT(*) FROM postgres_db."Products" WHERE nutrition_basis IS NOT NULL'
         ).fetchone()[0]
         category_link_count = con.execute(
             "SELECT COUNT(*) FROM postgres_db.product_categories"

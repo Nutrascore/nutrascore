@@ -82,7 +82,7 @@
 		// Preserve any already-loaded products that remain selected.
 		comparisonProducts = comparisonProducts.filter((product) => selectedIds.includes(product.id));
 
-		if (selectedIds.length < 2) {
+		if (selectedIds.length !== 2) {
 			loading = false;
 			return;
 		}
@@ -90,14 +90,12 @@
 		loading = true;
 
 		try {
-			const result = await compareProducts(selectedIds);
+			const result = await compareProducts([selectedIds[0], selectedIds[1]]);
 
 			// Ignore outdated responses.
 			if (requestId !== comparisonRequestId) return;
 
-			comparisonProducts = selectedIds
-				.map((id) => result.products.find((product) => product.id === id))
-				.filter((product): product is Product => Boolean(product));
+			comparisonProducts = result.products;
 		} catch (err) {
 			if (requestId !== comparisonRequestId) return;
 
@@ -151,7 +149,7 @@
 			<div class="section-heading">
 				<div>
 					<h2 id="selection-heading">Your products</h2>
-					<p>Choose up to two products to start a comparison.</p>
+					<p>Select exactly two products to compare them side by side.</p>
 				</div>
 			</div>
 

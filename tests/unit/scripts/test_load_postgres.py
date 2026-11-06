@@ -1,14 +1,33 @@
 import unittest
 
 from script.load_postgres import (
+    CSV_PATH,
+    PRODUCT_TABLES,
+    REQUIRED_COLUMNS_IN_DATABASE,
+    REQUIRED_TABLES,
     duckdb_connection_string,
     load_csv,
     normalize_category_name,
     parse_numeric,
 )
+from script.validate_dataset import DEFAULT_INPUT
 
 
 class LoadPostgresTests(unittest.TestCase):
+    def test_import_schema_uses_five_table_model_without_separate_nutrition(self) -> None:
+        self.assertEqual(REQUIRED_TABLES, {"Products", "categories", "product_categories"})
+        self.assertEqual(PRODUCT_TABLES, ('"Products"', "product_categories", "categories"))
+        self.assertIn("image_url", REQUIRED_COLUMNS_IN_DATABASE["Products"])
+        self.assertIn("nutrition_basis", REQUIRED_COLUMNS_IN_DATABASE["Products"])
+        self.assertNotIn("Nutrition", REQUIRED_TABLES)
+        self.assertNotIn("created_at", REQUIRED_COLUMNS_IN_DATABASE["Products"])
+        self.assertNotIn("updated_at", REQUIRED_COLUMNS_IN_DATABASE["Products"])
+
+    def test_importer_and_validator_share_the_canonical_cleaned_csv(self) -> None:
+        self.assertEqual(CSV_PATH, DEFAULT_INPUT)
+        self.assertEqual(CSV_PATH.name, "packaged_foods_india_cleaned.csv")
+        self.assertEqual(CSV_PATH.parent.name, "processed")
+
     def test_import_data_preserves_values_without_inventing_nutrition_basis(self) -> None:
         products, nutrition, _, _ = load_csv()
         product = products[

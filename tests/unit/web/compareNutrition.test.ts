@@ -17,8 +17,6 @@ function createProduct(
     name,
     brand: null,
     ingredients: null,
-    nutriScore: null,
-    novaGroup: null,
     priceInr,
     imageUrl: null,
     categories: [],

@@ -122,8 +122,6 @@
 		id: string;
 		name: string;
 		brand: string | null;
-		nutriScore: string | null;
-		novaGroup: number | null;
 		priceInr?: number | null;
 		imageUrl: string | null;
 	}

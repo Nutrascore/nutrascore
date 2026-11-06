@@ -7,8 +7,6 @@
 		getCategories,
 		createModeratorProduct,
 		deleteModeratorProduct,
-		removeModeratorImage,
-		updateModeratorImage,
 		updateModeratorProduct,
 		type Nutrition,
 		type ModeratorProduct
@@ -20,7 +18,7 @@
 
 	const pageSize = 20;
 	const emptyNutrition: Nutrition = {
-		basis: 'per100g',
+		basis: 'unknown',
 		kcalPer100g: null,
 		fatG: null,
 		saturatedFatG: null,
@@ -65,7 +63,6 @@
 	let message = $state('');
 	let editing = $state<string | null>(null);
 	let imageUrl = $state('');
-	let originalImageUrl = $state('');
 	let name = $state('');
 	let brand = $state('');
 	let priceInr = $state('');
@@ -215,8 +212,7 @@
 
 	async function beginEdit(product: ModeratorProduct) {
 		editing = product.id;
-		imageUrl = product.image_url ?? '';
-		originalImageUrl = imageUrl;
+		imageUrl = product.imageUrl ?? '';
 		priceInr = '';
 		priceError = '';
 		message = '';
@@ -228,6 +224,7 @@
 			brand = details.brand ?? '';
 			priceInr = details.priceInr ?? '';
 			ingredients = details.ingredients ?? '';
+			imageUrl = details.imageUrl ?? '';
 			nutrition = blankNutrition(details.nutrition);
 		} catch (err) {
 			editing = null;
@@ -253,11 +250,9 @@
 				brand: brand.trim() || null,
 				ingredients: ingredients || null,
 				priceInr: normalizedPrice || null,
+				imageUrl: imageUrl.trim() || null,
 				nutrition
 			});
-			if (imageUrl !== originalImageUrl) {
-				await updateModeratorImage(product.id, imageUrl, '');
-			}
 			message = 'Product changes saved.';
 			editing = null;
 			await load();
@@ -295,17 +290,6 @@
 		}
 	}
 
-	async function remove(product: ModeratorProduct) {
-		if (!confirm(`Remove the image for ${product.name}?`)) return;
-		try {
-			await removeModeratorImage(product.id);
-			message = 'Image removed.';
-			await load();
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Unable to remove image.';
-		}
-	}
-
 	function applyFilters() {
 		appliedQuery = query.trim();
 		appliedStatus = status;
@@ -338,7 +322,7 @@
 <svelte:head><title>Moderator dashboard — NutraScore</title></svelte:head>
 <main class="dashboard">
 	<h1>Moderator dashboard</h1>
-	<p>Manage product details and their associated images.</p>
+	<p>Manage product details and optional product images.</p>
 	<form
 		class="filters"
 		onsubmit={(event) => {
@@ -347,10 +331,8 @@
 		}}
 	>
 		<input bind:value={query} placeholder="Search products" aria-label="Search products" />
-		<select bind:value={status} aria-label="Image status">
-			<option value="missing">Missing images</option><option value="existing"
-				>Existing images</option
-			>
+		<select bind:value={status} aria-label="Image availability">
+			<option value="missing">No image URL</option><option value="existing">Has image URL</option>
 		</select>
 		<button disabled={loading}>Filter</button>
 	</form>
@@ -432,11 +414,11 @@
 			{#each products as product (product.id)}
 				<section class="row">
 					<div class="preview">
-						{#if product.image_url && imageErrors[product.id] !== product.image_url}
+						{#if product.imageUrl && imageErrors[product.id] !== product.imageUrl}
 							<img
-								src={product.image_url}
+								src={product.imageUrl}
 								alt={product.name}
-								onerror={() => (imageErrors[product.id] = product.image_url ?? '')}
+								onerror={() => (imageErrors[product.id] = product.imageUrl ?? '')}
 							/>
 						{:else}<span>No image</span>{/if}
 					</div>
@@ -507,9 +489,7 @@
 							</div>
 						</div>
 					{:else}<div class="actions">
-							<button onclick={() => beginEdit(product)}>Edit</button>{#if product.image_url}
-								<button class="danger" onclick={() => void remove(product)}>Remove Image</button
-								>{/if}
+							<button onclick={() => beginEdit(product)}>Edit</button>
 							<button
 								class="danger"
 								disabled={deleting === product.id}

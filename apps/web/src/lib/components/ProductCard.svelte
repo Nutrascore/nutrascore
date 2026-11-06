@@ -17,6 +17,7 @@
 	} = $props();
 
 	let isSelected = $derived($compareStore.includes(product.id));
+	let comparisonFull = $derived($compareStore.length >= 2);
 	let imageFailed = $state(false);
 
 	function addToComparison(event: MouseEvent) {
@@ -76,6 +77,10 @@
 				class:added={isSelected}
 				class="compare-button"
 				aria-pressed={isSelected}
+				disabled={!isSelected && comparisonFull}
+				aria-label={!isSelected && comparisonFull
+					? 'Comparison already has two products. Remove one before adding another.'
+					: undefined}
 				onclick={addToComparison}
 			>
 				{#if isSelected}
@@ -258,6 +263,13 @@
 	.compare-button.added:hover {
 		border-color: #a9d0b5;
 		background: #e1f0e5;
+	}
+
+	.compare-button:disabled {
+		border-color: #a9b5ad;
+		background: #e8ece9;
+		color: #657168;
+		cursor: not-allowed;
 	}
 
 	.compare-button:focus-visible {

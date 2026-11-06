@@ -9,21 +9,24 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: nutrascore_test
+          POSTGRES_USER: nutrascore
+          POSTGRES_PASSWORD: nutrascore_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nutrascore -d nutrascore_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install and start PostgreSQL 17
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get update
-          sudo apt-get install -y postgresql-17
-          sudo systemctl start postgresql
-          sudo -u postgres psql --command "CREATE ROLE nutrascore WITH LOGIN PASSWORD 'nutrascore_dev';"
-          sudo -u postgres createdb --owner=nutrascore nutrascore
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -53,7 +56,7 @@ jobs:
       - name: Database migration
         run: pnpm db:migrate
         env:
-          DATABASE_URL: postgresql://nutrascore:nutrascore_dev@localhost:5432/nutrascore
+          DATABASE_URL: postgresql://nutrascore:nutrascore_ci@localhost:5432/nutrascore_test
 
       - name: Check
         run: pnpm check
@@ -64,7 +67,7 @@ jobs:
       - name: Test
         run: pnpm test
         env:
-          DATABASE_URL: postgresql://nutrascore:nutrascore_dev@localhost:5432/nutrascore
+          NUTRASCORE_TEST_DATABASE_URL: postgresql://nutrascore:nutrascore_ci@localhost:5432/nutrascore_test
 
       - name: Build
         run: pnpm build

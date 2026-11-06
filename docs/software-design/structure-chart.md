@@ -27,7 +27,7 @@ flowchart TD
     CLIENTS --> AUTHAPI["api/auth.ts"]
     CLIENTS --> MODAPI["api/moderator.ts"]
     CLIENTS --> SHARED["api/client.ts and api/types.ts"]
-    WEB --> STATE["Comparison store and nutrition utilities"]
+    WEB --> STATE["Comparison store and nutrition utilities<br/>exactly two products"]
     CLIENTS -->|HTTP requests, credentials, CSRF header| API
 
     API --> ENTRY["src/index.ts<br/>Fastify setup and route registration"]
@@ -39,6 +39,8 @@ flowchart TD
     ENTRY --> MODROUTES["routes/moderator.ts"]
     AUTHROUTES --> AUTHMODULE["auth.ts<br/>passwords, sessions, CSRF, roles"]
     MODROUTES --> AUTHMODULE
+    PRODUCTROUTES --> PRODUCTQUERY["db/product-query.ts<br/>shared detail SQL and mapper"]
+    COMPAREROUTES --> PRODUCTQUERY
     PRODUCTROUTES --> POOL["db/pool.ts<br/>PostgreSQL pg Pool"]
     SEARCHROUTES --> POOL
     CATEGORYROUTES --> POOL
@@ -51,8 +53,11 @@ flowchart TD
     POOL --> PG
 
     DATA --> LOADER["script/load_postgres.py"]
+    DATA --> VALIDATOR["script/validate_dataset.py"]
+    VALIDATOR --> CSV
+    VALIDATOR --> REPORTS["data/reports/"]
     LOADER --> PYDEPS["pandas and DuckDB PostgreSQL extension"]
-    LOADER --> CSV["data/raw/packaged_foods_india_cleaned.csv"]
+    LOADER --> CSV["data/processed/packaged_foods_india_cleaned.csv"]
     LOADER -->|--apply after schema validation| PG
     LOADER -->|logical CSV exports before writes| BACKUPS["data/backups/"]
 ```
@@ -63,8 +68,11 @@ The API registers its route plugins in `apps/api/src/index.ts`. Runtime route
 handlers and authentication helpers share the PostgreSQL pool. Drizzle Kit
 uses `db/schema.ts` for schema tooling and the SQL migrations in `drizzle/`.
 
-`script/load_postgres.py` is an independent administrative/development tool.
-It reads the cleaned CSV from `data/raw/`, validates required columns and
-database relationships, and uses pandas and DuckDB to optionally apply
-products, nutrition, categories, and category links to PostgreSQL. It does
-not run migrations or use the processed-directory copy as its input.
+Product detail and comparison routes share their select and response mapper
+through `db/product-query.ts`, while executing SQL through the PostgreSQL pool.
+`script/validate_dataset.py` runs read-only quality checks and writes review
+reports only when it finds candidates. `script/load_postgres.py` validates
+required columns and database relationships, then uses pandas and DuckDB to
+optionally apply product fields (including nutrition), categories, and
+category links to PostgreSQL. Both are administrative/development tools that
+read the canonical cleaned CSV; neither runs migrations.

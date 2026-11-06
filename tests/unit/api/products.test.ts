@@ -20,10 +20,8 @@ describe("product details response", () => {
           name: "Sunfeast Baked Creations Rich Choco Chip Cookies",
           brand: "SUNFEAST",
           ingredients: null,
-          nutri_score: null,
-          nova_group: null,
           price_inr: "25.00",
-          image_url: null,
+          image_url: "https://images.example.com/cookies.jpg",
           categories: [],
           kcal_per_100g: "105.00",
           fat_g: "5.5",
@@ -60,6 +58,7 @@ describe("product details response", () => {
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
         name: "Sunfeast Baked Creations Rich Choco Chip Cookies",
+        imageUrl: "https://images.example.com/cookies.jpg",
         priceInr: 25,
         nutrition: {
           basis: "perServing",
@@ -75,8 +74,11 @@ describe("product details response", () => {
       });
       expect(queryMock).toHaveBeenCalledWith(
         expect.stringContaining("p.price_inr"),
-        ["52c9da92-8dc3-512f-b24b-ec1caa3c3248"],
+        [["52c9da92-8dc3-512f-b24b-ec1caa3c3248"]],
       );
+      expect(queryMock.mock.calls[0][0]).toContain("p.image_url");
+      expect(queryMock.mock.calls[0][0]).not.toContain('"Nutrition"');
+      expect(queryMock.mock.calls[0][0]).not.toContain("ProductImages");
 
       queryMock.mockResolvedValueOnce({
         rows: [
@@ -95,6 +97,14 @@ describe("product details response", () => {
 
       expect(missingBasis.statusCode).toBe(200);
       expect(missingBasis.json().nutrition.basis).toBe("unknown");
+
+      const invalidId = await app.inject({
+        method: "GET",
+        url: "/products/not-a-uuid",
+      });
+      expect(invalidId.statusCode).toBe(400);
+      expect(invalidId.json()).toMatchObject({ error: "INVALID_PRODUCT_ID" });
+      expect(queryMock).toHaveBeenCalledTimes(2);
     } finally {
       await app.close();
     }

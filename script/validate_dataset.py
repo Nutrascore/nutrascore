@@ -18,7 +18,7 @@ ROOT_DIR = (
     else Path(__file__).resolve().parent
 )
 
-DEFAULT_INPUT = ROOT_DIR / "data" / "raw" / "packaged_foods_india_cleaned.csv"
+DEFAULT_INPUT = ROOT_DIR / "data" / "processed" / "packaged_foods_india_cleaned.csv"
 
 NUMERIC_COLUMNS = [
     "Serving_Size_g",

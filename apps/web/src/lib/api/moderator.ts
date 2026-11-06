@@ -34,18 +34,6 @@ export function createModeratorProduct(
 	});
 }
 
-export function updateModeratorImage(
-	productId: string,
-	imageUrl: string,
-	sourceUrl: string,
-	reviewStatus: 'verified' | 'needs_review' = 'needs_review'
-) {
-	return apiFetch(`/api/moderator/products/${encodeURIComponent(productId)}/image`, {
-		method: 'PUT',
-		body: JSON.stringify({ imageUrl, sourceUrl, reviewStatus })
-	});
-}
-
 export function getModeratorProduct(productId: string): Promise<ModeratorProductDetails> {
 	return apiFetch(`/api/moderator/products/${encodeURIComponent(productId)}`);
 }
@@ -57,6 +45,7 @@ export function updateModeratorProduct(
 		brand: string | null;
 		ingredients: string | null;
 		priceInr: string | null;
+		imageUrl?: string | null;
 		nutrition: Nutrition;
 	}
 ) {
@@ -71,20 +60,6 @@ export function deleteModeratorProduct(
 ): Promise<{ ok: true; id: string; name: string }> {
 	return apiFetch(`/api/moderator/products/${encodeURIComponent(productId)}`, {
 		method: 'DELETE',
-		body: '{}'
-	});
-}
-
-export function removeModeratorImage(productId: string) {
-	return apiFetch(`/api/moderator/products/${encodeURIComponent(productId)}/image`, {
-		method: 'DELETE',
-		body: '{}'
-	});
-}
-
-export function markModeratorImageForReview(productId: string) {
-	return apiFetch(`/api/moderator/products/${encodeURIComponent(productId)}/review`, {
-		method: 'POST',
 		body: '{}'
 	});
 }
