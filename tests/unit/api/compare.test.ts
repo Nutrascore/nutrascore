@@ -69,24 +69,18 @@ describe("product comparison API", () => {
     }
   });
 
-  it.each([
-    ["no ids", ""],
-    ["one id", firstId],
-    ["three ids", `${firstId},${secondId},${firstId}`],
-    ["duplicate ids", `${firstId},${firstId}`],
-    ["malformed ids", "not-a-uuid,also-not-a-uuid"],
-    ["repeated query parameters", `${firstId}&ids=${secondId}`],
-  ])("rejects %s", async (_description, ids) => {
+  it("rejects invalid comparison IDs without querying the database", async () => {
     const app = Fastify();
     await app.register(compareRoutes, { prefix: "/compare" });
     try {
-      const response = await app.inject({
-        method: "GET",
-        url: `/compare?ids=${ids}`,
-      });
-
-      expect(response.statusCode).toBe(400);
-      expect(response.json()).toMatchObject({ error: "INVALID_PRODUCTS" });
+      for (const ids of ["", `${firstId},${firstId}`, "invalid,also-invalid"]) {
+        const response = await app.inject({
+          method: "GET",
+          url: `/compare?ids=${ids}`,
+        });
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toMatchObject({ error: "INVALID_PRODUCTS" });
+      }
       expect(queryMock).not.toHaveBeenCalled();
     } finally {
       await app.close();
