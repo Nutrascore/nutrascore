@@ -12,8 +12,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "admin:promote-moderator": "tsx src/admin/promote-moderator.ts",
-    "test:watch": "vitest"
+    "admin:promote-moderator": "tsx src/admin/promote-moderator.ts"
   },
   "keywords": [],
   "author": "",

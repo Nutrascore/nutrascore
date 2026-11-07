@@ -63,10 +63,10 @@ the migration does not automatically delete them.
 
 ## Prerequisites
 
-The CI workflow uses Node.js 24, pnpm 10, Python 3.13, and PostgreSQL 17.
+The CI workflow uses Node.js 24, pnpm 10, and PostgreSQL 17.
 Use those versions where available for the closest match to CI. Git, Node.js,
 pnpm, and PostgreSQL are needed for the application. Python and the
-`requirements-test.txt` packages are needed for CSV tools and Python tests.
+`requirements-test.txt` packages are needed only for CSV tools.
 
 ## Setup on Windows (PowerShell)
 
@@ -78,7 +78,7 @@ Node.js 24 release from the [Node.js archive](https://nodejs.org/en/download/arc
 [official Windows installer](https://www.postgresql.org/download/windows/);
 include the command-line tools so `psql` is available. Install
 [Python 3.13](https://www.python.org/downloads/windows/) if you plan to use
-the CSV tools or run Python tests.
+the CSV tools.
 
 Open a new PowerShell window and verify:
 
@@ -441,18 +441,20 @@ Run these commands from the repository root:
 | `pnpm lint`                      | Run ESLint for the frontend, API, and tests.      |
 | `pnpm format`                    | Check frontend formatting with Prettier.          |
 | `pnpm typecheck`                 | Run Svelte checks and the API TypeScript check.   |
-| `pnpm unit-test`                 | Run frontend, API, and Python unit tests.         |
-| `pnpm integration-test`          | Run the API/PostgreSQL integration workflow.      |
-| `pnpm test`                      | Run unit and integration tests.                   |
+| `pnpm unit-test`                 | Run the frontend and API unit tests.              |
+| `pnpm integration-test`          | Check API product retrieval from PostgreSQL.      |
 | `pnpm check`                     | Run lint and typecheck.                           |
 | `pnpm build`                     | Build the frontend and API.                       |
 | `pnpm db:generate`               | Generate a migration from Drizzle schema changes. |
 
-Integration tests create and delete temporary records. They require a
-dedicated, migrated test database through `NUTRASCORE_TEST_DATABASE_URL` and
-refuse to run if it resolves to the configured development database. Migrate
-the test database with a temporary `DATABASE_URL` override, then restore or
-remove that override before running the test:
+Only unit and integration tests are kept. Unit tests need no database.
+Integration testing checks that the API connects to PostgreSQL and retrieves
+a product. It requires the separately migrated `nutrascore_test` database via
+`NUTRASCORE_TEST_DATABASE_URL`; it fails if the URL is missing, names another
+database, or points to the configured development database. It inserts and
+removes one temporary product in that test database only. Migrate the test
+database with a temporary `DATABASE_URL` override, then restore or remove that
+override before running the test:
 
 ```powershell
 $env:NUTRASCORE_TEST_DATABASE_URL = "postgresql://nutrascore:<password>@localhost:5432/nutrascore_test"
@@ -482,7 +484,7 @@ pnpm integration-test
 | `WEB_ORIGIN`                   | No                                     | Additional allowed frontend origin; defaults to `http://localhost:5173`.                                       |
 | `PUBLIC_API_URL`               | No                                     | Frontend API origin; defaults to `http://localhost:3000`.                                                      |
 | `NODE_ENV`                     | No                                     | Set to `production` to add the `Secure` attribute to auth cookies.                                             |
-| `NUTRASCORE_TEST_DATABASE_URL` | Yes for integration tests              | Dedicated, separately migrated test database URL; must not point to the configured development database.       |
+| `NUTRASCORE_TEST_DATABASE_URL` | Yes for integration tests              | URL for the separate, migrated `nutrascore_test` database.                                                     |
 
 The API and Drizzle migration configuration use `DATABASE_URL`.
 `PUBLIC_API_URL` is intentionally public; never put credentials or secrets in
@@ -510,8 +512,8 @@ data/
   processed/              Cleaned product CSV used by import tools
 script/                   Dataset validation and PostgreSQL CSV utilities
 tests/
-  integration/            API integration workflow using a separate database
-  unit/                   Frontend, API, and Python unit tests
+  integration/            API product retrieval using the test database
+  unit/                   Frontend and API unit tests
 docs/
   software-design/        Data dictionary, DFDs, and structure chart
 ```
