@@ -6,8 +6,8 @@ are restricted to the administrative command.
 
 ## Apply database migrations
 
-Configure `DATABASE_URL` in `apps/api/.env`, then run this from the repository
-root:
+Configure the local database path in `apps/api/.env`, then run this from the
+repository root:
 
 ```sh
 pnpm db:migrate
@@ -27,7 +27,7 @@ registration does not accept a role.
 
 ## Session handling
 
-Sessions use opaque random tokens delivered in HTTP-only cookies. PostgreSQL
+Sessions use opaque random tokens delivered in HTTP-only cookies. SQLite
 stores only SHA-256 token hashes. State-changing API calls require the CSRF
 token returned by `/api/auth/csrf`. Cookies use `SameSite=Lax`; the `Secure`
 flag is enabled when `NODE_ENV=production`. Passwords are bcrypt-hashed and

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { pool } from './db/pool.js';
+import { query } from './db/database.js';
 
 const SESSION_COOKIE = 'nutrascore_session';
 const CSRF_COOKIE = 'nutrascore_csrf';
@@ -56,7 +56,7 @@ function hashToken(token: string): string {
 export async function createSession(reply: FastifyReply, userId: string): Promise<void> {
 	const token = randomBytes(32).toString('base64url');
 	const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-	await pool.query(
+	await query(
 		`INSERT INTO user_sessions (id, user_id, token_hash, expires_at)
 		 VALUES ($1, $2, $3, $4)`,
 		[randomUUID(), userId, hashToken(token), expiresAt],
@@ -70,7 +70,7 @@ export async function createSession(reply: FastifyReply, userId: string): Promis
 export async function clearSession(request: FastifyRequest, reply: FastifyReply): Promise<void> {
 	const token = cookieValue(request, SESSION_COOKIE);
 	if (token) {
-		await pool.query('DELETE FROM user_sessions WHERE token_hash = $1', [hashToken(token)]);
+		await query('DELETE FROM user_sessions WHERE token_hash = $1', [hashToken(token)]);
 	}
 	reply.header('Set-Cookie', `${SESSION_COOKIE}=; ${cookieOptions(true, 0)}`);
 }
@@ -78,11 +78,11 @@ export async function clearSession(request: FastifyRequest, reply: FastifyReply)
 export async function getAuthUser(request: FastifyRequest): Promise<AuthUser | null> {
 	const token = cookieValue(request, SESSION_COOKIE);
 	if (!token) return null;
-	const result = await pool.query<SessionRow>(
+	const result = await query<SessionRow>(
 		`SELECT u.id, u.name, u.email, u.role, s.id AS session_id
 		 FROM user_sessions s
 		 INNER JOIN "Users" u ON u.id = s.user_id
-		 WHERE s.token_hash = $1 AND s.expires_at > NOW()
+		 WHERE s.token_hash = $1 AND julianday(s.expires_at) > julianday('now')
 		 LIMIT 1`,
 		[hashToken(token)],
 	);

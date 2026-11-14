@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
-import { pool } from '../db/pool.js';
-import { nutritionBasisFromDatabase, numericToNumber } from '../db/numeric.js';
+import { query } from '../db/database.js';
+import { mapProductSummary, type ProductSummaryRow } from '../db/product-query.js';
 
 interface CategoryParams {
   id: string;
@@ -18,13 +18,18 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
   // ============================================================
 
   app.get('/', async () => {
-    const result = await pool.query(
+    const result = await query<{
+      id: string;
+      name: string;
+      description: string | null;
+      product_count: number;
+    }>(
       `
       SELECT
         c.id,
         c.name,
         c.description,
-        COUNT(pc.product_id)::int AS product_count
+        COUNT(pc.product_id) AS product_count
       FROM categories c
       LEFT JOIN product_categories pc
         ON pc.category_id = c.id
@@ -61,7 +66,11 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
     const limit = Math.min(Number(request.query.limit) || 20, 100);
     const offset = Math.max(Number(request.query.offset) || 0, 0);
 
-    const categoryResult = await pool.query(
+    const categoryResult = await query<{
+      id: string;
+      name: string;
+      description: string | null;
+    }>(
       `
       SELECT
         id,
@@ -81,7 +90,7 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const result = await pool.query(
+    const result = await query<ProductSummaryRow>(
       `
       SELECT
         p.id,
@@ -106,18 +115,17 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         p.serving_unit,
         p.nutrition_basis,
         p.image_url,
-        category.name AS category_name
+        (
+          SELECT c.name
+          FROM product_categories linked_pc
+          INNER JOIN categories c ON c.id = linked_pc.category_id
+          WHERE linked_pc.product_id = p.id
+          ORDER BY c.name ASC
+          LIMIT 1
+        ) AS category_name
       FROM "Products" p
       INNER JOIN product_categories pc
         ON pc.product_id = p.id
-      LEFT JOIN LATERAL (
-        SELECT c.name
-        FROM product_categories linked_pc
-        INNER JOIN categories c ON c.id = linked_pc.category_id
-        WHERE linked_pc.product_id = p.id
-        ORDER BY c.name ASC
-        LIMIT 1
-      ) category ON TRUE
       WHERE pc.category_id = $1
       ORDER BY p.name ASC, p.id ASC
       LIMIT $2
@@ -126,9 +134,9 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
       [id, limit, offset],
     );
 
-    const countResult = await pool.query(
+    const countResult = await query<{ total: number }>(
       `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(*) AS total
       FROM product_categories
       WHERE category_id = $1
       `,
@@ -142,33 +150,7 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         description: categoryResult.rows[0].description,
       },
 
-      products: result.rows.map((product) => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-        imageUrl: product.image_url,
-        category: product.category_name,
-        priceInr: numericToNumber(product.price_inr),
-        nutrition: {
-          kcalPer100g: product.kcal_per_100g,
-          fatG: product.fat_g,
-          saturatedFatG: product.saturated_fat_g,
-          transFatG: product.trans_fat_g,
-          carbohydratesG: product.carbohydrates_g,
-          sugarsG: product.sugars_g,
-          fibreG: product.fibre_g,
-          proteinG: product.protein_g,
-          sodiumMg: product.sodium_mg,
-          saltG: product.salt_g,
-          cholesterolMg: product.cholesterol_mg,
-          calciumMg: product.calcium_mg,
-          ironMg: product.iron_mg,
-          vitamins: product.vitamins,
-          servingSize: product.serving_size,
-          servingUnit: product.serving_unit,
-          basis: nutritionBasisFromDatabase(product.nutrition_basis),
-        },
-      })),
+      products: result.rows.map(mapProductSummary),
 
       total: countResult.rows[0].total,
       limit,

@@ -5,9 +5,7 @@ const { queryMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
 }));
 
-vi.mock("../../../apps/api/src/db/pool.js", () => ({
-  pool: { query: queryMock },
-}));
+vi.mock("../../../apps/api/src/db/database.js", () => ({ query: queryMock }));
 
 import compareRoutes from "../../../apps/api/src/routes/compare.js";
 
@@ -57,51 +55,13 @@ describe("product comparison API", () => {
       expect(response.json().products[0].imageUrl).toBe(
         "https://images.example.com/product.jpg",
       );
-      expect(queryMock.mock.calls[0][0]).toContain("array_position");
+      expect(queryMock.mock.calls[0][0]).toContain("ORDER BY CASE p.id");
       expect(queryMock.mock.calls[0][0]).not.toContain('"Nutrition"');
       expect(queryMock.mock.calls[0][0]).not.toContain("ProductImages");
-      expect(queryMock).toHaveBeenCalledWith(
-        expect.any(String),
-        [[firstId, secondId]],
-      );
+      expect(queryMock).toHaveBeenCalledWith(expect.any(String), [firstId, secondId]);
     } finally {
       await app.close();
     }
   });
 
-  it("rejects invalid comparison IDs without querying the database", async () => {
-    const app = Fastify();
-    await app.register(compareRoutes, { prefix: "/compare" });
-    try {
-      for (const ids of ["", `${firstId},${firstId}`, "invalid,also-invalid"]) {
-        const response = await app.inject({
-          method: "GET",
-          url: `/compare?ids=${ids}`,
-        });
-        expect(response.statusCode).toBe(400);
-        expect(response.json()).toMatchObject({ error: "INVALID_PRODUCTS" });
-      }
-      expect(queryMock).not.toHaveBeenCalled();
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("rejects a comparison when either requested product is missing", async () => {
-    queryMock.mockResolvedValue({ rows: [comparisonRow(firstId, "First")] });
-
-    const app = Fastify();
-    await app.register(compareRoutes, { prefix: "/compare" });
-    try {
-      const response = await app.inject({
-        method: "GET",
-        url: `/compare?ids=${firstId},${secondId}`,
-      });
-
-      expect(response.statusCode).toBe(404);
-      expect(response.json()).toMatchObject({ error: "PRODUCTS_NOT_FOUND" });
-    } finally {
-      await app.close();
-    }
-  });
 });

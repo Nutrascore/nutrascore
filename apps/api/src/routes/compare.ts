@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
-import { pool } from '../db/pool.js';
-import { PRODUCT_DETAILS_QUERY, mapProduct, type ProductQueryRow } from '../db/product-query.js';
+import { query } from '../db/database.js';
+import { mapProduct, productDetailsQuery, type ProductQueryRow } from '../db/product-query.js';
 import { parseComparisonIds } from './compare-validation.js';
 
 interface CompareQuery {
@@ -19,7 +19,8 @@ const compareRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const result = await pool.query<ProductQueryRow>(PRODUCT_DETAILS_QUERY, [ids]);
+    const productQuery = productDetailsQuery(ids);
+    const result = await query<ProductQueryRow>(productQuery.statement, productQuery.values);
 
     if (result.rows.length !== ids.length) {
       return reply.status(404).send({

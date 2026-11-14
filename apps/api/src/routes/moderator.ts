@@ -2,17 +2,14 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
-import type { PoolClient } from 'pg';
-import { pool } from '../db/pool.js';
+import { query, transaction } from '../db/database.js';
 import { nutritionBasisFromDatabase } from '../db/numeric.js';
 import { requireCsrf, requireModerator } from '../auth.js';
-import { getModeratorTotalPages, parseModeratorPaginationValue } from './moderator-pagination.js';
 import {
 	moderatorNutritionFields,
 	normalizeProductMatch,
 	parseModeratorNutrition,
 	parseModeratorPrice,
-	productMatchLockKey,
 } from './moderator-product-validation.js';
 
 interface ProductParams { id: string }
@@ -45,6 +42,16 @@ const nutritionColumns = [
 	['servingSize', 'serving_size'],
 ] as const;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parsePage(value: string | undefined, fallback: number, max?: number): number | null {
+	if (value === undefined) return fallback;
+	if (!/^\d+$/.test(value)) return null;
+	const page = Number(value);
+	if (!Number.isSafeInteger(page) || page < 1 || (max !== undefined && page > max)) {
+		return null;
+	}
+	return page;
+}
 
 function nutritionBasisValue(basis: 'unknown' | 'perServing' | 'per100g'): string | null {
 	if (basis === 'unknown') return null;
@@ -90,36 +97,11 @@ async function assertPublicImageUrl(value: string): Promise<void> {
 	}
 }
 
-async function deleteLegacyProductRows(client: PoolClient, productId: string): Promise<void> {
-	const legacyTables = [
-		{ tableName: 'ProductImages', tableRef: '"ProductImages"' },
-		{ tableName: 'Nutrition', tableRef: '"Nutrition"' },
-		{ tableName: 'product_image_reviews', tableRef: 'product_image_reviews' },
-		{ tableName: 'product_image_sources', tableRef: 'product_image_sources' },
-		{ tableName: 'product_allergens', tableRef: 'product_allergens' },
-		{ tableName: 'product_barcode_sources', tableRef: 'product_barcode_sources' },
-	];
-	for (const { tableName, tableRef } of legacyTables) {
-		const tableExists = await client.query(
-			`SELECT EXISTS (
-				SELECT 1
-				FROM information_schema.columns
-				WHERE table_schema = 'public'
-				  AND table_name = $1
-				  AND column_name = 'product_id'
-			) AS has_product_id`,
-			[tableName],
-		);
-		if (!tableExists.rows[0]?.has_product_id) continue;
-		await client.query(`DELETE FROM ${tableRef} WHERE product_id = $1`, [productId]);
-	}
-}
-
 const moderatorRoutes: FastifyPluginAsync = async (app) => {
 	app.get<{ Querystring: ListQuery }>('/products', async (request, reply) => {
 		if (!(await requireModerator(request, reply))) return;
-		const requestedPage = parseModeratorPaginationValue(request.query.page, 1);
-		const pageSize = parseModeratorPaginationValue(request.query.pageSize, 24, 100);
+		const requestedPage = parsePage(request.query.page, 1);
+		const pageSize = parsePage(request.query.pageSize, 24, 100);
 		if (requestedPage === null || pageSize === null) {
 			return reply.status(400).send({ error: 'INVALID_PAGINATION', message: 'Page and pageSize must be positive integers; pageSize cannot exceed 100.' });
 		}
@@ -127,25 +109,28 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 		const conditions: string[] = [];
 		if (request.query.q?.trim()) {
 			params.push(`%${request.query.q.trim()}%`);
-			conditions.push(`(p.name ILIKE $${params.length} OR p.brand ILIKE $${params.length})`);
+			conditions.push(`(LOWER(p.name) LIKE LOWER($${params.length}) OR LOWER(p.brand) LIKE LOWER($${params.length}))`);
 		}
 		if (request.query.status === 'missing') conditions.push('p.image_url IS NULL');
 		if (request.query.status === 'existing') conditions.push('p.image_url IS NOT NULL');
 		const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-		const count = await pool.query(
-			`SELECT COUNT(*)::int AS total FROM "Products" p
+		const count = await query(
+			`SELECT COUNT(*) AS total FROM "Products" p
 			 ${where}`,
 			params,
 		);
 		const total = Number(count.rows[0].total);
-		const totalPages = getModeratorTotalPages(total, pageSize);
+		const totalPages = Math.ceil(total / pageSize);
 		const page = totalPages === 0 ? 1 : Math.min(requestedPage, totalPages);
 		params.push(pageSize, (page - 1) * pageSize);
-		const result = await pool.query(
+		const result = await query(
 			`SELECT p.id, p.name, p.brand, p.image_url AS "imageUrl",
-				COALESCE(category.name, 'Uncategorized') AS category
+				COALESCE((
+					SELECT c.name FROM product_categories pc
+					INNER JOIN categories c ON c.id = pc.category_id
+					WHERE pc.product_id = p.id ORDER BY c.name LIMIT 1
+				), 'Uncategorized') AS category
 			 FROM "Products" p
-			 LEFT JOIN LATERAL (SELECT c.name FROM product_categories pc INNER JOIN categories c ON c.id = pc.category_id WHERE pc.product_id = p.id ORDER BY c.name LIMIT 1) category ON TRUE
 			 ${where}
 			 ORDER BY p.name, p.id
 			 LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -196,35 +181,24 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 			}
 		}
 
-		const client = await pool.connect();
-		try {
-			await client.query('BEGIN');
-			await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
-				productMatchLockKey(name, brand),
-			]);
+		const outcome = transaction((run) => {
 			const normalizedName = normalizeProductMatch(name);
 			const normalizedBrand = normalizeProductMatch(brand);
-			const duplicate = await client.query(
+			const duplicate = run(
 				`SELECT id, name, brand FROM "Products"
-				 WHERE lower(regexp_replace(trim(name), '\\s+', ' ', 'g')) = $1
-				   AND lower(regexp_replace(trim(COALESCE(brand, '')), '\\s+', ' ', 'g')) = $2
+				 WHERE normalize_product_match(name) = $1
+				   AND normalize_product_match(COALESCE(brand, '')) = $2
 				 ORDER BY id
 				 LIMIT 5`,
 				[normalizedName, normalizedBrand],
 			);
 			if (duplicate.rowCount) {
-				await client.query('ROLLBACK');
-				return reply.status(409).send({
-					error: 'POSSIBLE_DUPLICATE_PRODUCT',
-					message: 'A product with the same normalized name and brand already exists.',
-					duplicates: duplicate.rows,
-				});
+				return { duplicates: duplicate.rows };
 			}
 			if (categoryId) {
-				const category = await client.query('SELECT 1 FROM categories WHERE id = $1', [categoryId]);
+				const category = run('SELECT 1 FROM categories WHERE id = $1', [categoryId]);
 				if (!category.rowCount) {
-					await client.query('ROLLBACK');
-					return reply.status(400).send({ error: 'INVALID_CATEGORY', field: 'categoryId', message: 'Choose a valid category.' });
+					return { invalidCategory: true as const };
 				}
 			}
 			const productId = randomUUID();
@@ -252,26 +226,43 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				parsedNutrition.vitamins,
 				nutritionBasisValue(parsedNutrition.basis),
 			];
-			const insertedProduct = await client.query(
+			const insertedProduct = run<{ price_inr: string | null }>(
 				`INSERT INTO "Products" (${productColumns.map((column) => `"${column}"`).join(', ')})
 				 VALUES (${productValues.map((_, index) => `$${index + 1}`).join(', ')})
 				 RETURNING price_inr`,
 				productValues,
 			);
 			if (categoryId) {
-				await client.query(
+				run(
 					'INSERT INTO product_categories (product_id, category_id) VALUES ($1, $2)',
 					[productId, categoryId],
 				);
 			}
-			await client.query('COMMIT');
-			return { ok: true, id: productId, name, priceInr: insertedProduct.rows[0].price_inr, imageUrl };
-		} catch (error) {
-			await client.query('ROLLBACK');
-			throw error;
-		} finally {
-			client.release();
+			return {
+				product: {
+					ok: true,
+					id: productId,
+					name,
+					priceInr: insertedProduct.rows[0].price_inr,
+					imageUrl,
+				},
+			};
+		});
+		if ('duplicates' in outcome) {
+			return reply.status(409).send({
+				error: 'POSSIBLE_DUPLICATE_PRODUCT',
+				message: 'A product with the same normalized name and brand already exists.',
+				duplicates: outcome.duplicates,
+			});
 		}
+		if ('invalidCategory' in outcome) {
+			return reply.status(400).send({
+				error: 'INVALID_CATEGORY',
+				field: 'categoryId',
+				message: 'Choose a valid category.',
+			});
+		}
+		return outcome.product;
 	});
 
 	app.get<{ Params: ProductParams }>('/products/:id', async (request, reply) => {
@@ -279,7 +270,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 		if (!uuidPattern.test(request.params.id)) {
 			return reply.status(400).send({ error: 'INVALID_PRODUCT_ID', message: 'A valid product ID is required.' });
 		}
-		const result = await pool.query(
+		const result = await query(
 			`SELECT p.id, p.name, p.brand, p.ingredients, p.price_inr, p.image_url AS "imageUrl",
 				p.kcal_per_100g, p.fat_g, p.saturated_fat_g, p.trans_fat_g, p.carbohydrates_g,
 				p.sugars_g, p.fibre_g, p.protein_g, p.sodium_mg, p.salt_g, p.cholesterol_mg,
@@ -362,14 +353,9 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				});
 			}
 		}
-		const client = await pool.connect();
-		try {
-			await client.query('BEGIN');
-			const exists = await client.query('SELECT 1 FROM "Products" WHERE id = $1 FOR UPDATE', [request.params.id]);
-			if (!exists.rowCount) {
-				await client.query('ROLLBACK');
-				return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
-			}
+		const updated = transaction((run) => {
+			const exists = run('SELECT 1 FROM "Products" WHERE id = $1', [request.params.id]);
+			if (!exists.rowCount) return false;
 			const nutritionValues = [
 				...nutritionColumns.map(([jsonName]) => parsedNutrition.values[jsonName]),
 				parsedNutrition.servingUnit,
@@ -382,10 +368,10 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				`"vitamins" = $${nutritionColumns.length + 9}`,
 				`"nutrition_basis" = $${nutritionColumns.length + 10}`,
 			];
-			await client.query(
+			run(
 				`UPDATE "Products"
 				 SET name = $1, brand = $2, ingredients = $3,
-				     price_inr = CASE WHEN $4 THEN $5::numeric ELSE price_inr END,
+				     price_inr = CASE WHEN $4 THEN $5 ELSE price_inr END,
 				     image_url = CASE WHEN $6 THEN $7 ELSE image_url END,
 				     ${nutritionAssignments.join(', ')}
 				 WHERE id = $${nutritionColumns.length + 11}`,
@@ -393,22 +379,20 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 					name,
 					brand,
 					ingredients,
-					body.priceInr !== undefined,
+					body.priceInr !== undefined ? 1 : 0,
 					parsedPrice?.priceInr ?? null,
-					body.imageUrl !== undefined,
+					body.imageUrl !== undefined ? 1 : 0,
 					imageUrl ?? null,
 					...nutritionValues,
 					request.params.id,
 				],
 			);
-			await client.query('COMMIT');
-			return { ok: true };
-		} catch (error) {
-			await client.query('ROLLBACK');
-			throw error;
-		} finally {
-			client.release();
+			return true;
+		});
+		if (!updated) {
+			return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
 		}
+		return { ok: true };
 	});
 
 	app.delete<{ Params: ProductParams }>('/products/:id', async (request, reply) => {
@@ -416,30 +400,19 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 		if (!uuidPattern.test(request.params.id)) {
 			return reply.status(400).send({ error: 'INVALID_PRODUCT_ID', message: 'A valid product ID is required.' });
 		}
-		const client = await pool.connect();
-		try {
-			await client.query('BEGIN');
-			const product = await client.query(
-				'SELECT name FROM "Products" WHERE id = $1 FOR UPDATE',
+		const productName = transaction((run) => {
+			const product = run<{ name: string }>(
+				'SELECT name FROM "Products" WHERE id = $1',
 				[request.params.id],
 			);
-			if (!product.rowCount) {
-				await client.query('ROLLBACK');
-				return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
-			}
-
-			const productId = request.params.id;
-			await deleteLegacyProductRows(client, productId);
-			await client.query('DELETE FROM product_categories WHERE product_id = $1', [productId]);
-			await client.query('DELETE FROM "Products" WHERE id = $1', [productId]);
-			await client.query('COMMIT');
-			return { ok: true, id: productId, name: product.rows[0].name };
-		} catch (error) {
-			await client.query('ROLLBACK');
-			throw error;
-		} finally {
-			client.release();
+			if (!product.rowCount) return null;
+			run('DELETE FROM "Products" WHERE id = $1', [request.params.id]);
+			return product.rows[0].name;
+		});
+		if (!productName) {
+			return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
 		}
+		return { ok: true, id: request.params.id, name: productName };
 	});
 
 };

@@ -4,7 +4,7 @@ export function numericToNumber(value: unknown): number | null {
 	const numericValue =
 		typeof value === 'number' || typeof value === 'string' ? Number(value) : Number.NaN;
 	if (!Number.isFinite(numericValue)) {
-		throw new TypeError('PostgreSQL returned an invalid numeric value.');
+		throw new TypeError('Database returned an invalid numeric value.');
 	}
 
 	return numericValue;

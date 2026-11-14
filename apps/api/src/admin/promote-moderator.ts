@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import pg from 'pg';
+import { query } from '../db/database.js';
 
 dotenv.config({ path: '../../.env' });
 dotenv.config();
@@ -10,20 +10,15 @@ if (!email) {
 	process.exit(1);
 }
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-try {
-	const result = await pool.query(
-		`UPDATE "Users" SET role = 'moderator', updated_at = NOW()
-		 WHERE email = $1
-		 RETURNING id, name, email, role`,
-		[email],
-	);
-	if (!result.rowCount) {
-		console.error('No account exists for that email. Register the account first.');
-		process.exitCode = 1;
-	} else {
-		console.log(`Promoted ${result.rows[0].email} to ${result.rows[0].role}.`);
-	}
-} finally {
-	await pool.end();
+const result = await query(
+	`UPDATE "Users" SET role = 'moderator', updated_at = CURRENT_TIMESTAMP
+	 WHERE email = $1
+	 RETURNING id, name, email, role`,
+	[email],
+);
+if (!result.rowCount) {
+	console.error('No account exists for that email. Register the account first.');
+	process.exitCode = 1;
+} else {
+	console.log(`Promoted ${result.rows[0].email} to ${result.rows[0].role}.`);
 }

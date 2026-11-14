@@ -1,8 +1,8 @@
 # NutraScore structure chart
 
-The chart shows the main runtime modules and the separate CSV import utility.
-It does not imply that API handlers use Drizzle queries: current route
-implementations issue SQL through the PostgreSQL `pg` pool.
+The chart shows the main runtime modules and separate data tools. Route SQL
+runs through the SQLite-backed database module; Drizzle Kit manages schema
+migrations.
 
 ```mermaid
 flowchart TD
@@ -41,38 +41,39 @@ flowchart TD
     MODROUTES --> AUTHMODULE
     PRODUCTROUTES --> PRODUCTQUERY["db/product-query.ts<br/>shared detail SQL and mapper"]
     COMPAREROUTES --> PRODUCTQUERY
-    PRODUCTROUTES --> POOL["db/pool.ts<br/>PostgreSQL pg Pool"]
-    SEARCHROUTES --> POOL
-    CATEGORYROUTES --> POOL
-    COMPAREROUTES --> POOL
-    AUTHMODULE --> POOL
-    MODROUTES --> POOL
+    PRODUCTROUTES --> DATABASE["db/database.ts<br/>SQLite connection and SQL queries"]
+    SEARCHROUTES --> DATABASE
+    CATEGORYROUTES --> DATABASE
+    COMPAREROUTES --> DATABASE
+    AUTHMODULE --> DATABASE
+    MODROUTES --> DATABASE
     API --> DRIZZLE["db/schema.ts and drizzle.config.ts"]
     DRIZZLE --> MIGRATIONS["drizzle/*.sql and migration journal"]
-    MIGRATIONS --> PG["PostgreSQL"]
-    POOL --> PG
+    MIGRATIONS --> SQLITE["data/nutrascore.sqlite"]
+    DATABASE --> SQLITE
 
-    DATA --> LOADER["script/load_postgres.py"]
+    DATA --> LOADER["script/load_sqlite.py"]
+    DATA --> MIGRATOR["script/migrate_postgres_to_sqlite.py"]
     DATA --> VALIDATOR["script/validate_dataset.py"]
     VALIDATOR --> CSV
     VALIDATOR --> REPORTS["data/reports/"]
-    LOADER --> PYDEPS["pandas and DuckDB PostgreSQL extension"]
+    LOADER --> PYDEPS["Python standard library"]
     LOADER --> CSV["data/processed/packaged_foods_india_cleaned.csv"]
-    LOADER -->|--apply after schema validation| PG
-    LOADER -->|logical CSV exports before writes| BACKUPS["data/backups/"]
+    LOADER -->|--apply adds missing records| SQLITE
+    MIGRATOR -->|read-only source copy| SQLITE
 ```
 
 The UI route files are under `apps/web/src/routes/`; shared UI components,
 API wrappers, types, and the comparison store are under `apps/web/src/lib/`.
 The API registers its route plugins in `apps/api/src/index.ts`. Runtime route
-handlers and authentication helpers share the PostgreSQL pool. Drizzle Kit
-uses `db/schema.ts` for schema tooling and the SQL migrations in `drizzle/`.
+handlers and authentication helpers share the SQLite connection.
+Drizzle Kit uses `db/schema.ts` and migrations in `drizzle-sqlite/`.
 
 Product detail and comparison routes share their select and response mapper
-through `db/product-query.ts`, while executing SQL through the PostgreSQL pool.
+through `db/product-query.ts`, while executing SQL through the SQLite database
+module.
 `script/validate_dataset.py` runs read-only quality checks and writes review
-reports only when it finds candidates. `script/load_postgres.py` validates
-required columns and database relationships, then uses pandas and DuckDB to
-optionally apply product fields (including nutrition), categories, and
-category links to PostgreSQL. Both are administrative/development tools that
-read the canonical cleaned CSV; neither runs migrations.
+reports only when it finds candidates. `script/load_sqlite.py` validates the
+canonical cleaned CSV and adds missing product and category data.
+`script/migrate_postgres_to_sqlite.py` is an optional read-only-source
+transfer utility for existing application data.

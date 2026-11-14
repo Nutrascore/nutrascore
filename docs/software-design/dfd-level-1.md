@@ -1,7 +1,7 @@
 # Data Flow Diagram — Level 1
 
 This diagram shows current user-facing API processes and the separate
-development-time CSV import. The data stores are the five active PostgreSQL
+development-time CSV import. The data stores are the five active SQLite
 tables; nutrition fields are stored on `Products`.
 
 ```mermaid
@@ -18,7 +18,7 @@ flowchart LR
     DETAIL(["3.0 Product detail"])
     COMPARE(["4.0 Product comparison"])
     MOD(["5.0 Moderator product management"])
-    IMPORT(["6.0 Validate and import CSV<br/>script/load_postgres.py"])
+    IMPORT(["6.0 Validate and import CSV<br/>script/load_sqlite.py"])
 
     P[(Products)]
     C[(categories)]
@@ -76,10 +76,10 @@ Product images are stored as the optional `Products.image_url` value. The
 moderator product form sets or clears that value; no separate image or review
 stores are used.
 
-The importer at `script/load_postgres.py` reads
-`data/processed/packaged_foods_india_cleaned.csv`, requires the database
-schema and foreign keys to exist, and writes only `Products`, `categories`,
-and `product_categories`. Its dry run does not connect to PostgreSQL.
+The importer at `script/load_sqlite.py` reads
+`data/processed/packaged_foods_india_cleaned.csv` and adds missing
+`Products`, `categories`, and `product_categories` rows to the local SQLite
+database. Its dry run does not connect to the database.
 
 The API validates moderator-supplied image URLs but does not perform automated
 image enrichment.

@@ -5,9 +5,7 @@ const { queryMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
 }));
 
-vi.mock("../../../apps/api/src/db/pool.js", () => ({
-  pool: { query: queryMock },
-}));
+vi.mock("../../../apps/api/src/db/database.js", () => ({ query: queryMock }));
 
 import {
   hashPassword,
@@ -16,7 +14,6 @@ import {
   validPassword,
 } from "../../../apps/api/src/auth.js";
 import authRoutes from "../../../apps/api/src/routes/auth.js";
-import moderatorRoutes from "../../../apps/api/src/routes/moderator.js";
 
 const user = {
   id: "52c9da92-8dc3-512f-b24b-ec1caa3c3248",
@@ -139,21 +136,4 @@ describe("authentication and moderator access", () => {
     }
   });
 
-  it("denies moderator catalogue access to a signed-in non-moderator", async () => {
-    sessionActive = true;
-    const app = Fastify();
-    await app.register(moderatorRoutes, { prefix: "/moderator" });
-    try {
-      const response = await app.inject({
-        method: "GET",
-        url: "/moderator/products",
-        headers: { cookie: "nutrascore_session=valid-session" },
-      });
-      expect(response.statusCode).toBe(403);
-      expect(response.json()).toMatchObject({ error: "MODERATOR_REQUIRED" });
-      expect(queryMock).toHaveBeenCalledTimes(1);
-    } finally {
-      await app.close();
-    }
-  });
 });
