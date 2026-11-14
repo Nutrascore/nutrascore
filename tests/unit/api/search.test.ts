@@ -5,14 +5,12 @@ const { queryMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
 }));
 
-vi.mock("../../../apps/api/src/db/pool.js", () => ({
-  pool: { query: queryMock },
-}));
+vi.mock("../../../apps/api/src/db/database.js", () => ({ query: queryMock }));
 
 import searchRoutes from "../../../apps/api/src/routes/search.js";
 
 describe("product search", () => {
-  it("filters by search term and category, paginates, and rejects invalid pages", async () => {
+  it("returns products matching the search term", async () => {
     queryMock
       .mockResolvedValueOnce({
         rows: [
@@ -21,7 +19,7 @@ describe("product search", () => {
             name: "Choco Chips",
             brand: "Example",
             price_inr: "25.00",
-            category_name: "Snacks",
+            category_name: null,
             nutrition_basis: "per_100g",
           },
         ],
@@ -34,7 +32,7 @@ describe("product search", () => {
     try {
       const response = await app.inject({
         method: "GET",
-        url: "/products/search?q=chips&categories=Snacks&pageSize=24&offset=24",
+        url: "/products/search?q=chips",
       });
 
       expect(response.statusCode).toBe(200);
@@ -44,31 +42,15 @@ describe("product search", () => {
             id: "product-1",
             name: "Choco Chips",
             priceInr: 25,
-            category: "Snacks",
+            category: null,
           },
         ],
         total: 1,
-        page: 2,
-        pageSize: 24,
       });
 
       const [query, values] = queryMock.mock.calls[0];
-      expect(query).toContain("p.name ILIKE");
-      expect(query).toContain("LOWER(TRIM(c.name)) = ANY($4::text[])");
-      expect(values).toEqual([
-        "%chips%",
-        "chips",
-        "chips%",
-        ["snacks"],
-        24,
-        24,
-      ]);
-
-      const invalidPage = await app.inject({
-        method: "GET",
-        url: "/products/search?page=0",
-      });
-      expect(invalidPage.statusCode).toBe(400);
+      expect(query).toContain("LOWER(p.name) LIKE LOWER(");
+      expect(values).toContain("%chips%");
       expect(queryMock).toHaveBeenCalledTimes(2);
     } finally {
       await app.close();

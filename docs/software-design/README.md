@@ -10,4 +10,5 @@ and operational scripts:
 - [DFD Level 2](./dfd-level-2.md)
 
 The web application is implemented in `apps/web/`, the API in `apps/api/`,
-and the product catalogue is stored in PostgreSQL and imported from CSV.
+and the product catalogue is stored in a local SQLite file and imported from
+CSV.

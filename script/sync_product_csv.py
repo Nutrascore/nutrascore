@@ -4,18 +4,19 @@ import argparse
 import csv
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+import os
 import re
 from pathlib import Path
+import sqlite3
 from typing import TypedDict
 import unicodedata
 
-import psycopg
-
+from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT_DIR / "data" / "processed" / "packaged_foods_india_cleaned.csv"
-ENV_PATH = ROOT_DIR / "apps" / "api" / ".env"
 REPORT_DIR = ROOT_DIR / "data" / "reports"
+load_dotenv(ROOT_DIR / "apps" / "api" / ".env")
 
 NUMERIC_FIELDS = {
     "Calories_kcal": "kcal_per_100g",
@@ -99,21 +100,6 @@ def clean_text(value: object) -> str | None:
     return None if not text or text.casefold() in {"nan", "none", "null", "n/a"} else text
 
 
-def read_database_url() -> str:
-    if not ENV_PATH.is_file():
-        raise FileNotFoundError(f"Environment file not found: {ENV_PATH}")
-    for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        if key.strip() == "DATABASE_URL":
-            database_url = value.strip().strip("\"'")
-            if database_url:
-                return database_url
-    raise ValueError(f"DATABASE_URL is missing from {ENV_PATH}")
-
-
 def load_csv() -> list[dict[str, str]]:
     if not CSV_PATH.is_file():
         raise FileNotFoundError(f"CSV file not found: {CSV_PATH}")
@@ -195,53 +181,40 @@ def write_report(report: list[dict[str, object]]) -> Path:
     return report_path
 
 
-def validate_schema(connection: psycopg.Connection) -> None:
+def validate_schema(connection: sqlite3.Connection) -> None:
     required = {
         "Products": {"id", "name", "brand", "price_inr", *NUTRITION_COLUMNS},
     }
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT table_name, column_name
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'Products'
-            """
-        )
-        actual: dict[str, set[str]] = {}
-        for table, column in cursor.fetchall():
-            actual.setdefault(table, set()).add(column)
+    actual = {
+        "Products": {row[1] for row in connection.execute('PRAGMA table_info("Products")')}
+    }
     missing = [
         f"{table}.{column}"
         for table, columns in required.items()
         for column in sorted(columns - actual.get(table, set()))
     ]
     if missing:
-        raise RuntimeError(f"Required PostgreSQL columns are missing: {', '.join(missing)}")
+        raise RuntimeError(f"Required SQLite columns are missing: {', '.join(missing)}")
 
 
-def fetch_products(connection: psycopg.Connection) -> list[ExistingProduct]:
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT id::text AS id, name, brand FROM "Products"')
-        return [
-            {"id": product_id, "name": name, "brand": brand}
-            for product_id, name, brand in cursor.fetchall()
-        ]
+def fetch_products(connection: sqlite3.Connection) -> list[ExistingProduct]:
+    return [
+        {"id": product_id, "name": name, "brand": brand}
+        for product_id, name, brand in connection.execute('SELECT id, name, brand FROM "Products"')
+    ]
 
 
-def current_nutrition(connection: psycopg.Connection, product_id: str) -> dict[str, object] | None:
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"""
-            SELECT {NUTRITION_SELECT}
-            FROM "Products"
-            WHERE id = %s::uuid
-            FOR UPDATE
-            """,
-            (product_id,),
-        )
-        row = cursor.fetchone()
-    return dict(zip(NUTRITION_COLUMNS, row)) if row else None
+def current_nutrition(connection: sqlite3.Connection, product_id: str) -> dict[str, object] | None:
+    row = connection.execute(
+        f'SELECT {NUTRITION_SELECT} FROM "Products" WHERE id = ?',
+        (product_id,),
+    ).fetchone()
+    if not row:
+        return None
+    result = dict(zip(NUTRITION_COLUMNS, row))
+    for column in (*NUMERIC_FIELDS.values(), "salt_g", "serving_size"):
+        result[column] = parse_numeric(result[column])
+    return result
 
 
 def serving_amounts(
@@ -273,7 +246,7 @@ def serving_amounts(
 
 
 def synchronize(
-    connection: psycopg.Connection,
+    connection: sqlite3.Connection,
     report: list[ProductMatch],
     source_basis: str,
 ) -> dict[str, int]:
@@ -286,7 +259,7 @@ def synchronize(
         "nutrition_rows_updated": 0,
         "nutrition_rows_skipped": 0,
     }
-    with connection.transaction():
+    with connection:
         for match in report:
             if match["status"] != "matched":
                 continue
@@ -296,22 +269,18 @@ def synchronize(
             if product is None:
                 raise RuntimeError(f"Matched CSV row {match['source_row']} has no product record.")
             source_price = parse_numeric(row.get("Price_INR"))
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    'SELECT price_inr FROM "Products" WHERE id = %s::uuid FOR UPDATE',
-                    (product_id,),
-                )
-                existing_price_row = cursor.fetchone()
+            existing_price_row = connection.execute(
+                'SELECT price_inr FROM "Products" WHERE id = ?', (product_id,)
+            ).fetchone()
             if existing_price_row is None:
                 raise RuntimeError(f"Matched product {product_id} disappeared during synchronization.")
-            old_price = existing_price_row[0]
+            old_price = parse_numeric(existing_price_row[0])
             product_changed = False
             if source_price is not None and source_price != old_price:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        'UPDATE "Products" SET price_inr = %s WHERE id = %s::uuid',
-                        (source_price, product_id),
-                    )
+                connection.execute(
+                    'UPDATE "Products" SET price_inr = ? WHERE id = ?',
+                    (format(source_price, "f"), product_id),
+                )
                 product_changed = True
                 if old_price is None:
                     counts["prices_populated"] += 1
@@ -346,12 +315,15 @@ def synchronize(
                 if value != existing[column]
             }
             if changes:
-                columns = ", ".join(f'"{column}" = %s' for column in changes)
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        f'UPDATE "Products" SET {columns} WHERE id = %s::uuid',
-                        (*changes.values(), product_id),
-                    )
+                columns = ", ".join(f'"{column}" = ?' for column in changes)
+                values = tuple(
+                    format(value, "f") if isinstance(value, Decimal) else value
+                    for value in changes.values()
+                )
+                connection.execute(
+                    f'UPDATE "Products" SET {columns} WHERE id = ?',
+                    (*values, product_id),
+                )
                 product_changed = True
                 counts["nutrition_rows_updated"] += 1
 
@@ -381,13 +353,23 @@ def main() -> None:
         )
 
     rows = load_csv()
-    with psycopg.connect(read_database_url()) as connection:
+    database_path = Path(os.environ.get(
+        "NUTRASCORE_DB_PATH", str(ROOT_DIR / "data" / "nutrascore.sqlite")
+    ))
+    if not database_path.is_absolute():
+        database_path = ROOT_DIR / "apps" / "api" / database_path
+    if not database_path.is_file():
+        raise FileNotFoundError(f"Run pnpm db:migrate first: {database_path}")
+    connection = sqlite3.connect(database_path)
+    try:
         validate_schema(connection)
         report = match_products(rows, fetch_products(connection))
         report_path = write_report(report)
         counts: dict[str, int] = {}
         if args.apply:
             counts = synchronize(connection, report, args.nutrition_basis)
+    finally:
+        connection.close()
 
     status_counts = {
         status: sum(row["status"] == status for row in report)

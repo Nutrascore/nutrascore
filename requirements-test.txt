@@ -1,4 +1,3 @@
-duckdb
 pandas
 playwright
 psycopg[binary]

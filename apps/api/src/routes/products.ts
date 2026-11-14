@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
-import { pool } from '../db/pool.js';
-import { PRODUCT_DETAILS_QUERY, mapProduct, type ProductQueryRow } from '../db/product-query.js';
+import { query } from '../db/database.js';
+import { mapProduct, productDetailsQuery, type ProductQueryRow } from '../db/product-query.js';
 
 interface ProductParams {
 	id: string;
@@ -19,7 +19,8 @@ const productRoutes: FastifyPluginAsync = async (app) => {
 			});
 		}
 
-		const result = await pool.query<ProductQueryRow>(PRODUCT_DETAILS_QUERY, [[request.params.id]]);
+		const productQuery = productDetailsQuery([request.params.id]);
+		const result = await query<ProductQueryRow>(productQuery.statement, productQuery.values);
 
 		if (result.rows.length === 0) {
 			return reply.status(404).send({

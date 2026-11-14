@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
-import { pool } from '../db/pool.js';
-import { nutritionBasisFromDatabase, numericToNumber } from '../db/numeric.js';
+import { query } from '../db/database.js';
+import { mapProductSummary, type ProductSummaryRow } from '../db/product-query.js';
 
 interface SearchQuery {
   q?: string;
@@ -82,33 +82,33 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
       exactTerm = addParam(q);
       prefixTerm = addParam(`${q}%`);
       conditions.push(`(
-        p.name ILIKE ${searchTerm}
-        OR p.brand ILIKE ${searchTerm}
+        LOWER(p.name) LIKE LOWER(${searchTerm})
+        OR LOWER(p.brand) LIKE LOWER(${searchTerm})
       )`);
       countConditions.push(`(
-        p.name ILIKE ${countSearchTerm}
-        OR p.brand ILIKE ${countSearchTerm}
+        LOWER(p.name) LIKE LOWER(${countSearchTerm})
+        OR LOWER(p.brand) LIKE LOWER(${countSearchTerm})
       )`);
     }
 
     const categoryNames = request.query.categories?.split(',').filter(Boolean) ?? [];
     if (categoryNames.length > 0) {
       const normalizedCategoryNames = normalizeCategoryNames(categoryNames);
-      const categoryParam = addParam(normalizedCategoryNames);
-      const countCategoryParam = addCountParam(normalizedCategoryNames);
+      const categoryParams = normalizedCategoryNames.map((name) => addParam(name));
+      const countCategoryParams = normalizedCategoryNames.map((name) => addCountParam(name));
       conditions.push(`EXISTS (
         SELECT 1
         FROM product_categories pc
         INNER JOIN categories c ON c.id = pc.category_id
         WHERE pc.product_id = p.id
-          AND LOWER(TRIM(c.name)) = ANY(${categoryParam}::text[])
+          AND LOWER(TRIM(c.name)) IN (${categoryParams.join(', ')})
       )`);
       countConditions.push(`EXISTS (
         SELECT 1
         FROM product_categories pc
         INNER JOIN categories c ON c.id = pc.category_id
         WHERE pc.product_id = p.id
-          AND LOWER(TRIM(c.name)) = ANY(${countCategoryParam}::text[])
+          AND LOWER(TRIM(c.name)) IN (${countCategoryParams.join(', ')})
       )`);
     }
 
@@ -127,7 +127,7 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         p.id ASC`
       : 'p.name ASC, p.id ASC';
 
-    const result = await pool.query(
+    const result = await query<ProductSummaryRow>(
       `
       SELECT
         p.id,
@@ -152,16 +152,15 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         p.serving_unit,
         p.nutrition_basis,
         p.image_url,
-        category.name AS category_name
+        (
+          SELECT c.name
+          FROM product_categories pc
+          INNER JOIN categories c ON c.id = pc.category_id
+          WHERE pc.product_id = p.id
+          ORDER BY c.name ASC
+          LIMIT 1
+        ) AS category_name
       FROM "Products" p
-      LEFT JOIN LATERAL (
-        SELECT c.name
-        FROM product_categories pc
-        INNER JOIN categories c ON c.id = pc.category_id
-        WHERE pc.product_id = p.id
-        ORDER BY c.name ASC
-        LIMIT 1
-      ) category ON TRUE
       ${whereClause}
       ORDER BY
         ${orderClause}
@@ -171,9 +170,9 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
       params,
     );
 
-    const countResult = await pool.query(
+    const countResult = await query<{ total: number }>(
       `
-      SELECT COUNT(*)::int AS total
+      SELECT COUNT(*) AS total
       FROM "Products" p
       ${countConditions.length > 0
         ? `WHERE ${countConditions.join('\n        AND ')}`
@@ -183,33 +182,7 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
     );
 
     return {
-      products: result.rows.map((product) => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-        imageUrl: product.image_url,
-        category: product.category_name,
-        priceInr: numericToNumber(product.price_inr),
-        nutrition: {
-          kcalPer100g: product.kcal_per_100g,
-          fatG: product.fat_g,
-          saturatedFatG: product.saturated_fat_g,
-          transFatG: product.trans_fat_g,
-          carbohydratesG: product.carbohydrates_g,
-          sugarsG: product.sugars_g,
-          fibreG: product.fibre_g,
-          proteinG: product.protein_g,
-          sodiumMg: product.sodium_mg,
-          saltG: product.salt_g,
-          cholesterolMg: product.cholesterol_mg,
-          calciumMg: product.calcium_mg,
-          ironMg: product.iron_mg,
-          vitamins: product.vitamins,
-          servingSize: product.serving_size,
-          servingUnit: product.serving_unit,
-          basis: nutritionBasisFromDatabase(product.nutrition_basis),
-        },
-      })),
+      products: result.rows.map(mapProductSummary),
       total: countResult.rows[0].total,
       page,
       pageSize,
@@ -236,7 +209,7 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
 
     const searchTerm = `${q}%`;
 
-    const result = await pool.query(
+    const result = await query<{ id: string; name: string; brand: string | null }>(
       `
       SELECT
         p.id,
@@ -244,8 +217,8 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         p.brand
       FROM "Products" p
       WHERE
-        p.name ILIKE $1
-        OR p.brand ILIKE $1
+        LOWER(p.name) LIKE LOWER($1)
+        OR LOWER(p.brand) LIKE LOWER($1)
       ORDER BY p.name ASC
       LIMIT $2
       `,

@@ -124,7 +124,7 @@ for HTTPS and a reachable image response.
 flowchart LR
     A[Developer or data administrator]
     CSV[(data/processed/packaged_foods_india_cleaned.csv)]
-    LOAD(["script/load_postgres.py<br/>validate and transform rows"])
+    LOAD(["script/load_sqlite.py<br/>validate and transform rows"])
     BASIS[Verified nutrition basis<br/>per_serving or per_100g]
     P[(Products)]
     C[(categories)]
@@ -140,10 +140,8 @@ flowchart LR
     LOAD -->|product/category associations| PC
 ```
 
-The importer is separate from runtime API flows. It uses pandas and DuckDB,
-validates the CSV and required PostgreSQL tables/foreign keys, and applies
-changes in a transaction only with `--apply`. The CSV has no nutrition-basis
-field, so an apply requires an explicit verified `--nutrition-basis`; the
-script does not determine the basis from the values or serving size. Missing
-CSV values are authoritative for fields represented in the file and may clear
-those fields on import.
+The importer is separate from runtime API flows. It uses Python's CSV and
+SQLite libraries, validates the source, and adds missing records in a
+transaction only with `--apply`. The CSV has no nutrition-basis field, so an
+apply requires an explicitly verified `--nutrition-basis`. Existing product
+values are not overwritten.

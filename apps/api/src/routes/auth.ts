@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
-import { pool } from '../db/pool.js';
+import { query } from '../db/database.js';
 import {
 	createSession,
 	clearSession,
@@ -70,7 +70,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 			return reply.status(400).send({ error: 'INVALID_PASSWORD', message: 'Password must be between 8 and 128 characters.' });
 		}
 		try {
-			const user = await pool.query(
+			const user = await query<{ id: string; name: string; email: string; role: string }>(
 				`INSERT INTO "Users" (id, name, email, password_hash)
 				 VALUES ($1, $2, $3, $4)
 				 RETURNING id, name, email, role`,
@@ -79,7 +79,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 			await createSession(reply, user.rows[0].id);
 			return reply.status(201).send({ user: user.rows[0] });
 		} catch (error) {
-			if ((error as { code?: string }).code === '23505') {
+			if ((error as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
 				return reply.status(409).send({ error: 'EMAIL_IN_USE', message: 'An account with that email already exists.' });
 			}
 			throw error;
@@ -94,7 +94,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 		if (isRateLimited(key)) {
 			return reply.status(429).send({ error: 'LOGIN_RATE_LIMITED', message: 'Too many login attempts. Try again later.' });
 		}
-		const result = await pool.query(
+		const result = await query<{ id: string; name: string; email: string; role: string; password_hash: string }>(
 			`SELECT id, name, email, role, password_hash FROM "Users" WHERE email = $1 LIMIT 1`,
 			[email],
 		);

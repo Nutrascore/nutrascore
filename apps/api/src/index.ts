@@ -2,7 +2,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 
-import { pool } from './db/pool.js';
+import { query } from './db/database.js';
 
 import productRoutes from './routes/products.js';
 import searchRoutes from './routes/search.js';
@@ -43,7 +43,7 @@ await app.register(cors, {
 // ============================================================
 
 app.get('/api/health', async () => {
-	const result = await pool.query('SELECT 1');
+	const result = await query('SELECT 1');
 
 	return {
 		status: 'ok',

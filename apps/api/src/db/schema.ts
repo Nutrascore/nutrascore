@@ -1,41 +1,42 @@
-import {
-  pgTable,
-  uuid,
-  varchar,
-  text,
-  numeric,
-  timestamp,
-  index,
-  primaryKey,
-  check,
-} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import {
+  check,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 
-export const products = pgTable("Products", {
-  id: uuid("id").primaryKey(),
-  name: varchar("name").notNull(),
-  brand: varchar("brand"),
-  barcode: varchar("barcode").unique(),
+export const products = sqliteTable("Products", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  brand: text("brand"),
+  barcode: text("barcode").unique(),
   ingredients: text("ingredients"),
   imageUrl: text("image_url"),
-  priceInr: numeric("price_inr"),
-  kcalPer100g: numeric("kcal_per_100g"),
-  fatG: numeric("fat_g"),
-  saturatedFatG: numeric("saturated_fat_g"),
-  transFatG: numeric("trans_fat_g"),
-  carbohydratesG: numeric("carbohydrates_g"),
-  sugarsG: numeric("sugars_g"),
-  fibreG: numeric("fibre_g"),
-  proteinG: numeric("protein_g"),
-  sodiumMg: numeric("sodium_mg"),
-  saltG: numeric("salt_g"),
-  cholesterolMg: numeric("cholesterol_mg"),
-  calciumMg: numeric("calcium_mg"),
-  ironMg: numeric("iron_mg"),
+  nutriScore: text("nutri_score"),
+  novaGroup: integer("nova_group"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  priceInr: text("price_inr"),
+  kcalPer100g: text("kcal_per_100g"),
+  fatG: text("fat_g"),
+  saturatedFatG: text("saturated_fat_g"),
+  transFatG: text("trans_fat_g"),
+  carbohydratesG: text("carbohydrates_g"),
+  sugarsG: text("sugars_g"),
+  fibreG: text("fibre_g"),
+  proteinG: text("protein_g"),
+  sodiumMg: text("sodium_mg"),
+  saltG: text("salt_g"),
+  cholesterolMg: text("cholesterol_mg"),
+  calciumMg: text("calcium_mg"),
+  ironMg: text("iron_mg"),
   vitamins: text("vitamins"),
-  servingSize: numeric("serving_size"),
-  servingUnit: varchar("serving_unit", { length: 20 }),
-  nutritionBasis: varchar("nutrition_basis", { length: 20 }),
+  servingSize: text("serving_size"),
+  servingUnit: text("serving_unit"),
+  nutritionBasis: text("nutrition_basis"),
 }, (table) => [
   check(
     "Products_nutrition_basis_check",
@@ -43,40 +44,40 @@ export const products = pgTable("Products", {
   ),
 ]);
 
-export const users = pgTable("Users", {
-  id: uuid("id").primaryKey(),
-  name: varchar("name", { length: 120 }).notNull(),
-  email: varchar("email", { length: 320 }).notNull().unique(),
+export const users = sqliteTable("Users", {
+  id: text("id").primaryKey(),
+  name: text("name", { length: 120 }).notNull(),
+  email: text("email", { length: 320 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: varchar("role", { length: 20 }).notNull().default("user"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  role: text("role", { length: 20 }).notNull().default("user"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   check("Users_role_check", sql`${table.role} in ('user', 'moderator')`),
 ]);
 
-export const userSessions = pgTable("user_sessions", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+export const userSessions = sqliteTable("user_sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash", { length: 64 }).notNull().unique(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("user_sessions_user_id_idx").on(table.userId),
   index("user_sessions_expires_at_idx").on(table.expiresAt),
 ]);
 
-export const categories = pgTable("categories", {
-  id: uuid("id").primaryKey(),
-  name: varchar("name").unique().notNull(),
+export const categories = sqliteTable("categories", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().unique(),
   description: text("description"),
 });
 
-export const productCategories = pgTable(
+export const productCategories = sqliteTable(
   "product_categories",
   {
-    productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
+    productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
   },
   (table) => [
     primaryKey({
