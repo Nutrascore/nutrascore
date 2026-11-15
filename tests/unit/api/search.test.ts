@@ -18,7 +18,7 @@ describe("product search", () => {
             id: "product-1",
             name: "Choco Chips",
             brand: "Example",
-            price_inr: "25.00",
+            price_inr: 25,
             category_name: null,
             nutrition_basis: "per_100g",
           },

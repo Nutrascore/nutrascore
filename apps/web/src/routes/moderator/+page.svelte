@@ -19,7 +19,7 @@
 	const pageSize = 20;
 	const emptyNutrition: Nutrition = {
 		basis: 'unknown',
-		kcalPer100g: null,
+		calories: null,
 		fatG: null,
 		saturatedFatG: null,
 		transFatG: null,
@@ -222,7 +222,7 @@
 			const details = await getModeratorProduct(product.id);
 			name = details.name;
 			brand = details.brand ?? '';
-			priceInr = details.priceInr ?? '';
+			priceInr = details.priceInr === null ? '' : String(details.priceInr);
 			ingredients = details.ingredients ?? '';
 			imageUrl = details.imageUrl ?? '';
 			nutrition = blankNutrition(details.nutrition);

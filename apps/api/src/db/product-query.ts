@@ -1,28 +1,28 @@
-import { nutritionBasisFromDatabase, numericToNumber } from './numeric.js';
+import { nutritionBasisFromDatabase } from './numeric.js';
 
 export interface ProductQueryRow {
 	id: string;
 	name: string;
 	brand: string | null;
 	ingredients: string | null;
-	price_inr: string | null;
+	price_inr: number | null;
 	image_url: string | null;
 	categories: string[];
-	kcal_per_100g: string | null;
-	fat_g: string | null;
-	saturated_fat_g: string | null;
-	trans_fat_g: string | null;
-	carbohydrates_g: string | null;
-	sugars_g: string | null;
-	fibre_g: string | null;
-	protein_g: string | null;
-	sodium_mg: string | null;
-	salt_g: string | null;
-	cholesterol_mg: string | null;
-	calcium_mg: string | null;
-	iron_mg: string | null;
+	calories: number | null;
+	fat_g: number | null;
+	saturated_fat_g: number | null;
+	trans_fat_g: number | null;
+	carbohydrates_g: number | null;
+	sugars_g: number | null;
+	fibre_g: number | null;
+	protein_g: number | null;
+	sodium_mg: number | null;
+	salt_g: number | null;
+	cholesterol_mg: number | null;
+	calcium_mg: number | null;
+	iron_mg: number | null;
 	vitamins: string | null;
-	serving_size: string | null;
+	serving_size: number | null;
 	serving_unit: string | null;
 	nutrition_basis: string | null;
 }
@@ -53,7 +53,7 @@ export function productDetailsQuery(ids: string[]) {
 						ORDER BY c.name
 					) c
 				), '[]') AS categories,
-				p.kcal_per_100g,
+				p.calories,
 				p.fat_g,
 				p.saturated_fat_g,
 				p.trans_fat_g,
@@ -88,9 +88,9 @@ export function mapProduct(row: ProductQueryRow) {
 		categories: typeof row.categories === 'string'
 			? JSON.parse(row.categories) as string[]
 			: row.categories,
-		priceInr: numericToNumber(row.price_inr),
+		priceInr: row.price_inr,
 		nutrition: {
-			kcalPer100g: row.kcal_per_100g,
+			calories: row.calories,
 			fatG: row.fat_g,
 			saturatedFatG: row.saturated_fat_g,
 			transFatG: row.trans_fat_g,
@@ -120,9 +120,9 @@ export function mapProductSummary(
 		brand: row.brand,
 		imageUrl: row.image_url,
 		category: row.category_name,
-		priceInr: numericToNumber(row.price_inr),
+		priceInr: row.price_inr,
 		nutrition: {
-			kcalPer100g: row.kcal_per_100g,
+			calories: row.calories,
 			fatG: row.fat_g,
 			saturatedFatG: row.saturated_fat_g,
 			transFatG: row.trans_fat_g,

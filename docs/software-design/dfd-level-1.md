@@ -14,7 +14,7 @@ flowchart LR
 
     WEB(["SvelteKit web client"])
     AUTH(["1.0 Authentication and sessions"])
-    DISC(["2.0 Product discovery<br/>search, autocomplete, categories, pagination"])
+    DISC(["2.0 Product discovery<br/>search, categories, pagination"])
     DETAIL(["3.0 Product detail"])
     COMPARE(["4.0 Product comparison"])
     MOD(["5.0 Moderator product management"])
@@ -33,7 +33,7 @@ flowchart LR
     DISC --> P
     DISC --> C
     DISC --> PC
-    DISC -->|paged search results and suggestions| WEB
+    DISC -->|paged search results| WEB
     WEB -->|product ID| DETAIL
     DETAIL --> P
     DETAIL --> C
@@ -62,14 +62,13 @@ flowchart LR
 
     A -->|start import and provide verified nutrition basis| IMPORT
     CSV -->|cleaned CSV rows| IMPORT
-    IMPORT -->|product and nutrition upsert| P
-    IMPORT -->|category upsert| C
+    IMPORT -->|add missing products and nutrition| P
+    IMPORT -->|add missing categories| C
     IMPORT -->|category links| PC
 ```
 
-The user-facing discovery process reads paged product summaries; autocomplete
-is a separate API operation within discovery. Category browsing uses
-`categories` and `product_categories`. Product details and comparisons read
+The user-facing discovery process reads paged product summaries. Category
+browsing uses `categories` and `product_categories`. Product details and comparisons read
 the same product row (including nutrition and image fields) and category links.
 
 Product images are stored as the optional `Products.image_url` value. The

@@ -32,24 +32,6 @@ export function searchProducts(
 	return apiFetch(`/api/products/search?${params.toString()}`);
 }
 
-export function autocompleteProducts(
-	query: string,
-	limit = 10
-): Promise<{
-	suggestions: {
-		id: string;
-		name: string;
-		brand: string | null;
-	}[];
-}> {
-	const params = new URLSearchParams({
-		q: query,
-		limit: String(limit)
-	});
-
-	return apiFetch(`/api/products/autocomplete?${params.toString()}`);
-}
-
 export function compareProducts(
 	ids: readonly [string, string]
 ): Promise<{ products: ComparisonProducts }> {

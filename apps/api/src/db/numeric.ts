@@ -10,7 +10,7 @@ export function numericToNumber(value: unknown): number | null {
 	return numericValue;
 }
 
-export type NutritionBasis = 'perServing' | 'per100g' | 'unknown';
+export type NutritionBasis = 'perServing' | 'per100g' | 'per100ml' | 'unknown';
 
 export function nutritionBasisFromDatabase(value: unknown): NutritionBasis {
 	switch (value) {
@@ -18,6 +18,8 @@ export function nutritionBasisFromDatabase(value: unknown): NutritionBasis {
 			return 'perServing';
 		case 'per_100g':
 			return 'per100g';
+		case 'per_100ml':
+			return 'per100ml';
 		default:
 			return 'unknown';
 	}

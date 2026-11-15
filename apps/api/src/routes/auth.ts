@@ -20,6 +20,7 @@ interface CredentialsBody {
 	password?: string;
 }
 
+// This simple limiter resets on server restart and is local to one server instance.
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;

@@ -5,7 +5,7 @@
 		$props();
 
 	const nutrientFields = [
-		['kcalPer100g', 'Energy (kcal)'],
+		['calories', 'Energy (kcal)'],
 		['proteinG', 'Protein (g)'],
 		['carbohydratesG', 'Carbohydrates (g)'],
 		['sugarsG', 'Sugars (g)'],
@@ -29,6 +29,7 @@
 			<option value="unknown">Unknown</option>
 			<option value="perServing">Per serving</option>
 			<option value="per100g">Per 100 g</option>
+			<option value="per100ml">Per 100 ml</option>
 		</select>
 	</label>
 	{#each nutrientFields as [key, label] (key)}
@@ -55,9 +56,6 @@
 			<option value={null}>Not specified</option>
 			<option value="g">g</option>
 			<option value="ml">ml</option>
-			<option value="oz">oz</option>
-			<option value="piece">piece</option>
-			<option value="serving">serving</option>
 		</select>
 	</label>
 </fieldset>

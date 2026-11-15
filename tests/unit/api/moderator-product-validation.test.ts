@@ -20,7 +20,7 @@ describe("moderator product validation", () => {
       productMatchLockKey("a", "bc"),
     );
     const result = parseModeratorNutrition({
-      kcalPer100g: "123.4",
+      calories: "123.4",
       proteinG: 4,
       servingSize: "30",
       servingUnit: "ML",
@@ -28,7 +28,7 @@ describe("moderator product validation", () => {
       vitamins: "Vitamin D (mcg) 2",
     });
     expect(result.error).toBeUndefined();
-    expect(result.values.kcalPer100g).toBe("123.4");
+    expect(result.values.calories).toBe("123.4");
     expect(result.servingUnit).toBe("ml");
     expect(result.basis).toBe("perServing");
     expect(result.vitamins).toBe("Vitamin D (mcg) 2");
@@ -36,16 +36,16 @@ describe("moderator product validation", () => {
       "sodiumMg",
     );
     expect(
-      parseModeratorNutrition({ kcalPer100g: "not-a-number" }).error,
-    ).toContain("kcalPer100g");
+      parseModeratorNutrition({ calories: "not-a-number" }).error,
+    ).toContain("calories");
     expect(parseModeratorNutrition({ servingUnit: "packet" }).error).toContain(
       "Serving unit",
     );
     expect(parseModeratorNutrition({ basis: "unknown" }).error).toBeUndefined();
-    expect(parseModeratorNutrition({ kcalPer100g: "12" }).error).toContain(
+    expect(parseModeratorNutrition({ calories: "12" }).error).toContain(
       "Choose a nutrition basis",
     );
-    expect(parseModeratorNutrition({ kcalPer100g: "12", basis: "unknown" }).error).toContain(
+    expect(parseModeratorNutrition({ calories: "12", basis: "unknown" }).error).toContain(
       "Choose a nutrition basis",
     );
     expect(parseModeratorNutrition({ vitamins: 3 }).error).toContain(

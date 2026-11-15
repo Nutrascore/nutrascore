@@ -231,9 +231,9 @@
 						<h2 id="nutrition-heading">Nutrition comparison</h2>
 					</div>
 					<p class="section-description">
-						Values are compared per 100 g. Per-serving values are normalized when a valid gram
-						serving size is available; nutrients with missing or uncertain measurement bases may be
-						excluded.
+						Values are compared per 100 g or per 100 ml. Per-serving values are normalized when a
+						valid matching serving size is available; nutrients with missing or uncertain
+						measurement bases may be excluded.
 					</p>
 				</div>
 
@@ -249,7 +249,7 @@
 						<span>Calories</span>
 						{#each comparisonProducts as product, index (product.id)}
 							{@const other = comparisonProducts[index === 0 ? 1 : 0]}
-							{@const comparison = nutritionComparison(product, other, 'kcalPer100g', ' kcal')}
+							{@const comparison = nutritionComparison(product, other, 'calories', ' kcal')}
 							<span>
 								{comparison.value} (<span class={comparison.percentageClass}
 									>{comparison.percentage}</span

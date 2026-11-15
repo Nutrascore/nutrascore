@@ -14,7 +14,7 @@
 	let productId = $derived(page.params.id);
 	let isSelectedForCompare = $derived(product ? $compareStore.includes(product.id) : false);
 	const nutritionRows = [
-		{ label: 'Energy', key: 'kcalPer100g', unit: ' kcal' },
+		{ label: 'Energy', key: 'calories', unit: ' kcal' },
 		{ label: 'Protein', key: 'proteinG', unit: ' g' },
 		{ label: 'Carbohydrates', key: 'carbohydratesG', unit: ' g' },
 		{ label: 'Total fat', key: 'fatG', unit: ' g' },
@@ -39,21 +39,30 @@
 		}).format(value);
 	}
 
+	function hundredBasis(): NutritionDisplayBasis {
+		return product?.nutrition?.servingUnit?.trim().toLowerCase() === 'ml' ? 'per100ml' : 'per100g';
+	}
+
+	function hundredUnit(): string {
+		return hundredBasis() === 'per100ml' ? 'ml' : 'g';
+	}
+
 	function servingDescription(): string {
 		const nutrition = product?.nutrition;
 		if (!nutrition || nutrition.servingSize === null || nutrition.servingUnit === null) {
 			return 'unavailable';
 		}
-		const size = Number(nutrition.servingSize);
+		const size = nutrition.servingSize;
 		if (!Number.isFinite(size) || size <= 0) return 'unavailable';
 		return `${formatNutritionValue(size)} ${nutrition.servingUnit}`;
 	}
 
 	function hasConvertibleServingSize(): boolean {
 		const nutrition = product?.nutrition;
-		if (!nutrition || nutrition.servingUnit?.trim().toLowerCase() !== 'g') return false;
-		const size = Number(nutrition.servingSize);
-		return Number.isFinite(size) && size > 0;
+		if (!nutrition || !['g', 'ml'].includes(nutrition.servingUnit?.trim().toLowerCase() ?? ''))
+			return false;
+		const size = nutrition.servingSize;
+		return size !== null && Number.isFinite(size) && size > 0;
 	}
 
 	function displayNutritionValue(
@@ -91,6 +100,7 @@
 
 		try {
 			product = await getProduct(productId);
+			nutritionMode = hundredBasis();
 		} catch (err) {
 			console.error(err);
 
@@ -183,11 +193,11 @@
 					</button>
 					<button
 						type="button"
-						class:active={nutritionMode === 'per100g'}
-						aria-pressed={nutritionMode === 'per100g'}
-						onclick={() => (nutritionMode = 'per100g')}
+						class:active={nutritionMode === hundredBasis()}
+						aria-pressed={nutritionMode === hundredBasis()}
+						onclick={() => (nutritionMode = hundredBasis())}
 					>
-						Per 100 g
+						Per 100 {hundredUnit()}
 					</button>
 				</div>
 
@@ -199,18 +209,18 @@
 							Per serving
 						{/if}
 					{:else}
-						Per 100 g
+						Per 100 {hundredUnit()}
 					{/if}
 				</p>
 				{#if product.nutrition?.basis === 'unknown'}
 					<p class="nutrition-unavailable" role="status">
-						Per 100 g values are unavailable because the nutrition basis is unknown.
+						Per 100 {hundredUnit()} values are unavailable because the nutrition basis is unknown.
 					</p>
 				{:else if product.nutrition && product.nutrition.basis !== nutritionMode && !hasConvertibleServingSize()}
 					<p class="nutrition-unavailable" role="status">
-						{nutritionMode === 'per100g'
-							? 'Per 100 g values are unavailable because a valid serving size in grams is not available. Switch to Per serving to view the original values.'
-							: 'Per-serving values are unavailable because a valid serving size in grams is not available. Switch to Per 100 g to view the original values.'}
+						{nutritionMode === hundredBasis()
+							? `Per 100 ${hundredUnit()} values are unavailable because a valid serving size in ${hundredUnit()} is not available. Switch to Per serving to view the original values.`
+							: `Per-serving values are unavailable because a valid serving size in ${hundredUnit()} is not available. Switch to Per 100 ${hundredUnit()} to view the original values.`}
 					</p>
 				{/if}
 

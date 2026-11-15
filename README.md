@@ -1,32 +1,27 @@
 # NutraScore
 
-NutraScore helps users find, view, and compare packaged-food products sold in India.
+NutraScore is a small Indian packaged-food discovery and comparison platform.
+It uses a local SQLite database for an offline-friendly demonstration dataset.
 
 ## Features
 
 - Search products and browse categories.
 - View product ingredients, price, image, and nutrition.
-- Compare two products.
+- Compare exactly two products.
 - Register, sign in, and manage sessions.
-- Moderator product management.
+- Moderators can add, edit, and delete products.
 
 ## Technology
 
 - SvelteKit, Svelte 5, TypeScript, and Vite.
 - Fastify and TypeScript API.
-- SQLite in a local file, accessed through Drizzle ORM.
+- SQLite in a local file, accessed through Drizzle ORM (475 products and 906 product-category relationships in the demonstration database).
 - Vitest.
 
 ## Prerequisites
 
 - Node.js 24 and pnpm 10 (`corepack enable`).
-- Python 3.13 only for the CSV and existing-database import scripts.
-
-Install the optional Python tools when using the data scripts:
-
-```sh
-python -m pip install -r requirements-test.txt
-```
+- Python 3.13 only when using the CSV import or validation scripts.
 
 ## Install
 
@@ -52,23 +47,23 @@ Create the local database tables with Drizzle:
 pnpm db:migrate
 ```
 
-The migration creates an empty database. Import the cleaned product CSV with a
-verified nutrition basis (the source CSV does not specify whether values are
-per serving or per 100 g):
+The migration creates an empty database. The demonstration database already
+contains 475 products, 203 categories, and 906 product-category relationships.
+To load a cleaned CSV into a new local database, provide a verified nutrition
+basis because the source CSV does not specify whether values are per serving or
+per 100 g:
 
 ```sh
 python script/load_sqlite.py --apply --nutrition-basis per_serving
 ```
 
-The importer adds missing products and category links without overwriting
-existing records. To transfer data from an existing PostgreSQL database first,
-see `script/migrate_postgres_to_sqlite.py`; the source is read-only and the
-SQLite destination must be empty. It requires `psycopg` from
-`requirements-test.txt` and a `POSTGRES_MIGRATION_URL`.
+The importer adds missing products, categories, and category links without
+overwriting existing product records. Nutrition values may be imported per
+serving, per 100 g, or per 100 ml; the selected basis is stored with each
+product.
 
-Generate a migration after changing the schema with `pnpm db:generate`.
-SQLite migrations are kept in `apps/api/drizzle-sqlite/`; the historical
-PostgreSQL migration is retained separately in `apps/api/drizzle/`.
+SQLite migrations are kept in `apps/api/drizzle-sqlite/`. They rebuild the
+Products table in place when column types or names change, preserving records.
 
 ## Run
 

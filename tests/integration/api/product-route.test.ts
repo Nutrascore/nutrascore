@@ -18,7 +18,7 @@ describe("product API integration", () => {
           name: "Choco Chip Cookies",
           brand: "Example",
           ingredients: null,
-          price_inr: "25.00",
+          price_inr: 25,
           image_url: "https://images.example.com/cookies.jpg",
           categories: [],
           nutrition_basis: "per_100g",
