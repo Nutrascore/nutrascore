@@ -376,7 +376,10 @@
 		{:else if error}
 			<p class="status-message error">{error}</p>
 		{:else}
-			<div class="product-grid">
+			<div
+				class="product-grid"
+				class:single-column={filteredProducts.length > 0 && filteredProducts.length < pageSize}
+			>
 				{#each filteredProducts as product (product.id)}
 					<ProductCard {product} selectMode={true} />
 				{:else}
@@ -584,8 +587,12 @@
 
 	.product-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+		grid-template-columns: repeat(4, minmax(0, 1fr));
 		gap: 20px;
+	}
+
+	.product-grid.single-column {
+		grid-template-columns: 1fr;
 	}
 
 	.no-results,
@@ -653,9 +660,25 @@
 			padding: 0 20px;
 		}
 
+		.product-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
 		.section-header {
 			align-items: flex-start;
 			flex-direction: column;
+		}
+	}
+
+	@media (min-width: 751px) and (max-width: 1000px) {
+		.product-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 500px) {
+		.product-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
