@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	let query = $state('');
 
 	function discover() {
@@ -6,7 +8,7 @@
 
 		if (!trimmedQuery) return;
 
-		window.location.href = `/discover?q=${encodeURIComponent(trimmedQuery)}`;
+		void goto(resolve(`/discover?q=${encodeURIComponent(trimmedQuery)}`));
 	}
 </script>
 

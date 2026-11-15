@@ -1,5 +1,5 @@
 export const moderatorNutritionFields = [
-	'kcalPer100g',
+	'calories',
 	'fatG',
 	'saturatedFatG',
 	'transFatG',
@@ -15,8 +15,8 @@ export const moderatorNutritionFields = [
 	'servingSize',
 ] as const;
 
-export const moderatorServingUnits = ['g', 'ml', 'oz', 'piece', 'serving'] as const;
-export const moderatorNutritionBases = ['unknown', 'perServing', 'per100g'] as const;
+export const moderatorServingUnits = ['g', 'ml'] as const;
+export const moderatorNutritionBases = ['unknown', 'perServing', 'per100g', 'per100ml'] as const;
 
 export function parseModeratorPrice(value: unknown): { priceInr: string | null; error?: string } {
 	if (value === null || value === undefined) return { priceInr: null };
@@ -75,7 +75,7 @@ export function parseModeratorNutrition(
 			servingUnit: null,
 			vitamins: null,
 			basis: 'unknown',
-			error: 'Serving unit must be g, ml, oz, piece, or serving.',
+			error: 'Serving unit must be g or ml.',
 		};
 	}
 	const rawBasis = nutrition?.basis;
@@ -88,7 +88,7 @@ export function parseModeratorNutrition(
 			servingUnit,
 			vitamins: null,
 			basis: 'unknown',
-			error: 'Nutrition basis must be unknown, Per serving, or Per 100 g.',
+			error: 'Nutrition basis must be unknown, Per serving, Per 100 g, or Per 100 ml.',
 		};
 	}
 	const rawVitamins = nutrition?.vitamins;

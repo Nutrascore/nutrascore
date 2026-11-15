@@ -97,7 +97,7 @@ const categoryRoutes: FastifyPluginAsync = async (app) => {
         p.name,
         p.brand,
         p.price_inr,
-        p.kcal_per_100g,
+        p.calories,
         p.fat_g,
         p.saturated_fat_g,
         p.trans_fat_g,

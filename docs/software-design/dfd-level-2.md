@@ -35,7 +35,6 @@ the `X-CSRF-Token` header. Moderator authorization additionally checks the
 flowchart LR
     C[Web client]
     SEARCH(["Search products"])
-    AUTO(["Autocomplete"])
     CATLIST(["List categories"])
     CATPROD(["Browse products by category"])
     DETAIL(["Load product detail"])
@@ -49,10 +48,6 @@ flowchart LR
     SEARCH --> PC
     PC --> CATS
     SEARCH -->|paged summaries and total count| C
-
-    C -->|prefix query and limit| AUTO
-    AUTO -->|name and brand prefix lookup| P
-    AUTO -->|suggestions| C
 
     C -->|category request| CATLIST
     CATLIST --> CATS
@@ -125,7 +120,7 @@ flowchart LR
     A[Developer or data administrator]
     CSV[(data/processed/packaged_foods_india_cleaned.csv)]
     LOAD(["script/load_sqlite.py<br/>validate and transform rows"])
-    BASIS[Verified nutrition basis<br/>per_serving or per_100g]
+    BASIS[Verified nutrition basis<br/>per_serving, per_100g, or per_100ml]
     P[(Products)]
     C[(categories)]
     PC[(product_categories)]

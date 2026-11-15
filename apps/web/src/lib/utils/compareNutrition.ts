@@ -18,7 +18,7 @@ export interface PriceComparison {
 }
 
 export type ComparisonNutrientKey =
-	| 'kcalPer100g'
+	| 'calories'
 	| 'proteinG'
 	| 'carbohydratesG'
 	| 'fatG'
@@ -34,7 +34,7 @@ interface NutrientDefinition {
 }
 
 const NUTRIENT_DEFINITIONS: NutrientDefinition[] = [
-	{ key: 'kcalPer100g', label: 'calories' },
+	{ key: 'calories', label: 'calories' },
 	{ key: 'proteinG', label: 'protein' },
 	{ key: 'carbohydratesG', label: 'carbohydrates' },
 	{ key: 'fatG', label: 'total fat' },
@@ -116,14 +116,16 @@ export function normalisedValue(product: Product, key: ComparisonNutrientKey): n
 	}
 
 	const rawValue = product.nutrition[key];
-	if (rawValue === null || rawValue === undefined || rawValue === '') {
+	if (rawValue === null || rawValue === undefined) {
 		return null;
 	}
 
+	const targetBasis =
+		product.nutrition.servingUnit?.trim().toLowerCase() === 'ml' ? 'per100ml' : 'per100g';
 	return convertNutritionValue(
 		rawValue,
 		product.nutrition.basis,
-		'per100g',
+		targetBasis,
 		product.nutrition.servingSize,
 		product.nutrition.servingUnit
 	);
@@ -206,6 +208,11 @@ export function buildComparisonAnalysis(product: Product, other: Product): strin
 	});
 
 	for (const definition of nutrientDefinitions) {
+		const productUnit = product.nutrition?.servingUnit?.trim().toLowerCase();
+		const otherUnit = other.nutrition?.servingUnit?.trim().toLowerCase();
+		if (productUnit && otherUnit && productUnit !== otherUnit) {
+			continue;
+		}
 		const currentValue = normalisedValue(product, definition.key);
 		const otherValue = normalisedValue(other, definition.key);
 

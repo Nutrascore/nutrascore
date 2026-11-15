@@ -26,7 +26,19 @@ describe("convertNutritionValue", () => {
       ).toBeNull();
     }
     expect(
-      convertNutritionValue("25", "perServing", "per100g", "1", "piece"),
+      convertNutritionValue("25", "perServing", "per100g", "1", "packet"),
+    ).toBeNull();
+    expect(
+      convertNutritionValue(25, "perServing", "per100ml", "50", "ml"),
+    ).toBe(50);
+    expect(
+      convertNutritionValue(25, "perServing", "per100g", "50", "ml"),
+    ).toBeNull();
+    expect(
+      convertNutritionValue(25, "perServing", "per100ml", "50", "g"),
+    ).toBeNull();
+    expect(
+      convertNutritionValue(25, "per100g", "per100ml", "50", "g"),
     ).toBeNull();
   });
 });

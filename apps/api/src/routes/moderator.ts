@@ -3,7 +3,8 @@ import { isIP } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { query, transaction } from '../db/database.js';
-import { nutritionBasisFromDatabase } from '../db/numeric.js';
+import { mapProduct, productDetailsQuery, type ProductQueryRow } from '../db/product-query.js';
+import { isValidUuid } from './compare-validation.js';
 import { requireCsrf, requireModerator } from '../auth.js';
 import {
 	moderatorNutritionFields,
@@ -26,7 +27,7 @@ interface ProductCreateBody extends ProductDetailsBody {
 	categoryId?: string | null;
 }
 const nutritionColumns = [
-	['kcalPer100g', 'kcal_per_100g'],
+	['calories', 'calories'],
 	['fatG', 'fat_g'],
 	['saturatedFatG', 'saturated_fat_g'],
 	['transFatG', 'trans_fat_g'],
@@ -41,7 +42,6 @@ const nutritionColumns = [
 	['ironMg', 'iron_mg'],
 	['servingSize', 'serving_size'],
 ] as const;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parsePage(value: string | undefined, fallback: number, max?: number): number | null {
 	if (value === undefined) return fallback;
@@ -53,9 +53,10 @@ function parsePage(value: string | undefined, fallback: number, max?: number): n
 	return page;
 }
 
-function nutritionBasisValue(basis: 'unknown' | 'perServing' | 'per100g'): string | null {
+function nutritionBasisValue(basis: 'unknown' | 'perServing' | 'per100g' | 'per100ml'): string | null {
 	if (basis === 'unknown') return null;
-	return basis === 'perServing' ? 'per_serving' : 'per_100g';
+	if (basis === 'perServing') return 'per_serving';
+	return basis === 'per100ml' ? 'per_100ml' : 'per_100g';
 }
 
 function isPrivateAddress(address: string): boolean {
@@ -123,7 +124,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 		const totalPages = Math.ceil(total / pageSize);
 		const page = totalPages === 0 ? 1 : Math.min(requestedPage, totalPages);
 		params.push(pageSize, (page - 1) * pageSize);
-		const result = await query(
+		const result = await query<ProductQueryRow>(
 			`SELECT p.id, p.name, p.brand, p.image_url AS "imageUrl",
 				COALESCE((
 					SELECT c.name FROM product_categories pc
@@ -159,7 +160,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 			});
 		}
 		const categoryId = body.categoryId == null ? null : String(body.categoryId).trim() || null;
-		if (categoryId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(categoryId)) {
+		if (categoryId && !isValidUuid(categoryId)) {
 			return reply.status(400).send({ error: 'INVALID_CATEGORY', field: 'categoryId', message: 'Choose a valid category.' });
 		}
 		const nutrition = body.nutrition && typeof body.nutrition === 'object' ? body.nutrition : {};
@@ -226,7 +227,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 				parsedNutrition.vitamins,
 				nutritionBasisValue(parsedNutrition.basis),
 			];
-			const insertedProduct = run<{ price_inr: string | null }>(
+			const insertedProduct = run<{ price_inr: number | null }>(
 				`INSERT INTO "Products" (${productColumns.map((column) => `"${column}"`).join(', ')})
 				 VALUES (${productValues.map((_, index) => `$${index + 1}`).join(', ')})
 				 RETURNING price_inr`,
@@ -267,52 +268,18 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 
 	app.get<{ Params: ProductParams }>('/products/:id', async (request, reply) => {
 		if (!(await requireModerator(request, reply))) return;
-		if (!uuidPattern.test(request.params.id)) {
+		if (!isValidUuid(request.params.id)) {
 			return reply.status(400).send({ error: 'INVALID_PRODUCT_ID', message: 'A valid product ID is required.' });
 		}
-		const result = await query(
-			`SELECT p.id, p.name, p.brand, p.ingredients, p.price_inr, p.image_url AS "imageUrl",
-				p.kcal_per_100g, p.fat_g, p.saturated_fat_g, p.trans_fat_g, p.carbohydrates_g,
-				p.sugars_g, p.fibre_g, p.protein_g, p.sodium_mg, p.salt_g, p.cholesterol_mg,
-				p.calcium_mg, p.iron_mg, p.vitamins, p.serving_size, p.serving_unit, p.nutrition_basis
-			 FROM "Products" p
-			 WHERE p.id = $1`,
-			[request.params.id],
-		);
+		const productQuery = productDetailsQuery([request.params.id]);
+		const result = await query<ProductQueryRow>(productQuery.statement, productQuery.values);
 		if (!result.rowCount) return reply.status(404).send({ error: 'PRODUCT_NOT_FOUND', message: 'Product not found.' });
-		const product = result.rows[0];
-		return {
-			id: product.id,
-			name: product.name,
-			brand: product.brand,
-			ingredients: product.ingredients,
-			priceInr: product.price_inr,
-			imageUrl: product.imageUrl,
-			nutrition: {
-				kcalPer100g: product.kcal_per_100g,
-				fatG: product.fat_g,
-				saturatedFatG: product.saturated_fat_g,
-				transFatG: product.trans_fat_g,
-				carbohydratesG: product.carbohydrates_g,
-				sugarsG: product.sugars_g,
-				fibreG: product.fibre_g,
-				proteinG: product.protein_g,
-				sodiumMg: product.sodium_mg,
-				saltG: product.salt_g,
-				cholesterolMg: product.cholesterol_mg,
-				calciumMg: product.calcium_mg,
-				ironMg: product.iron_mg,
-				vitamins: product.vitamins,
-				servingSize: product.serving_size,
-				servingUnit: product.serving_unit,
-				basis: nutritionBasisFromDatabase(product.nutrition_basis),
-			},
-		};
+		return mapProduct(result.rows[0]);
 	});
 
 	app.put<{ Params: ProductParams; Body: ProductDetailsBody }>('/products/:id/details', async (request, reply) => {
 		if (!(await requireModerator(request, reply)) || !requireCsrf(request, reply)) return;
-		if (!uuidPattern.test(request.params.id)) {
+		if (!isValidUuid(request.params.id)) {
 			return reply.status(400).send({ error: 'INVALID_PRODUCT_ID', message: 'A valid product ID is required.' });
 		}
 		const body = request.body ?? {};
@@ -397,7 +364,7 @@ const moderatorRoutes: FastifyPluginAsync = async (app) => {
 
 	app.delete<{ Params: ProductParams }>('/products/:id', async (request, reply) => {
 		if (!(await requireModerator(request, reply)) || !requireCsrf(request, reply)) return;
-		if (!uuidPattern.test(request.params.id)) {
+		if (!isValidUuid(request.params.id)) {
 			return reply.status(400).send({ error: 'INVALID_PRODUCT_ID', message: 'A valid product ID is required.' });
 		}
 		const productName = transaction((run) => {

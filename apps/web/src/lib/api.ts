@@ -1,5 +1,4 @@
 export {
-	autocompleteProducts,
 	compareProducts,
 	getCategories,
 	getCategoryProducts,

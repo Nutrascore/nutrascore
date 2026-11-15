@@ -19,7 +19,7 @@ REPORT_DIR = ROOT_DIR / "data" / "reports"
 load_dotenv(ROOT_DIR / "apps" / "api" / ".env")
 
 NUMERIC_FIELDS = {
-    "Calories_kcal": "kcal_per_100g",
+    "Calories": "calories",
     "Total_Fat_g": "fat_g",
     "Saturated_Fat_g": "saturated_fat_g",
     "Trans_Fat_g": "trans_fat_g",
@@ -223,9 +223,9 @@ def serving_amounts(
     source_basis: str | None,
 ) -> tuple[dict[str, object] | None, str | None]:
     basis = existing["nutrition_basis"]
-    if basis not in {"per_100g", "per_serving"}:
+    if basis not in {"per_100g", "per_100ml", "per_serving"}:
         return None, f"Unsupported existing nutrition basis: {basis!r}"
-    if source_basis not in {"per_100g", "per_serving"}:
+    if source_basis not in {"per_100g", "per_100ml", "per_serving"}:
         return None, "CSV nutrition basis is unspecified; no nutrition values were changed."
     if source_basis != basis:
         return None, f"CSV basis {source_basis} differs from existing basis {basis}; no conversion was attempted."
@@ -341,7 +341,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--nutrition-basis",
-        choices=("per_serving", "per_100g"),
+        choices=("per_serving", "per_100g", "per_100ml"),
         help="Verified basis of the CSV nutrient amounts; required with --apply.",
     )
     args = parser.parse_args()

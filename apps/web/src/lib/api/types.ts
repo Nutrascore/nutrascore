@@ -4,22 +4,22 @@ export interface HealthResponse {
 }
 
 export interface Nutrition {
-	basis: 'perServing' | 'per100g' | 'unknown';
-	kcalPer100g: string | null;
-	fatG: string | null;
-	saturatedFatG: string | null;
-	transFatG: string | null;
-	carbohydratesG: string | null;
-	sugarsG: string | null;
-	fibreG: string | null;
-	proteinG: string | null;
-	sodiumMg: string | null;
-	saltG: string | null;
-	cholesterolMg: string | null;
-	calciumMg: string | null;
-	ironMg: string | null;
+	basis: 'perServing' | 'per100g' | 'per100ml' | 'unknown';
+	calories: number | null;
+	fatG: number | null;
+	saturatedFatG: number | null;
+	transFatG: number | null;
+	carbohydratesG: number | null;
+	sugarsG: number | null;
+	fibreG: number | null;
+	proteinG: number | null;
+	sodiumMg: number | null;
+	saltG: number | null;
+	cholesterolMg: number | null;
+	calciumMg: number | null;
+	ironMg: number | null;
 	vitamins: string | null;
-	servingSize: string | null;
+	servingSize: number | null;
 	servingUnit: string | null;
 }
 
@@ -68,8 +68,9 @@ export interface ModeratorProductDetails {
 	name: string;
 	brand: string | null;
 	ingredients: string | null;
-	priceInr: string | null;
+	priceInr: number | null;
 	imageUrl: string | null;
+	categories: string[];
 	nutrition: Nutrition | null;
 }
 
@@ -87,6 +88,6 @@ export interface CreatedModeratorProduct {
 	ok: true;
 	id: string;
 	name: string;
-	priceInr: string | null;
+	priceInr: number | null;
 	imageUrl: string | null;
 }

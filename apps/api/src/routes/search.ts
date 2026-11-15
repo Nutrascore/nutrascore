@@ -134,7 +134,7 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
         p.name,
         p.brand,
         p.price_inr,
-        p.kcal_per_100g,
+        p.calories,
         p.fat_g,
         p.saturated_fat_g,
         p.trans_fat_g,
@@ -190,49 +190,6 @@ const searchRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  // ============================================================
-  // AUTOCOMPLETE
-  // GET /api/products/autocomplete?q=ore
-  // ============================================================
-
-  app.get<{
-    Querystring: SearchQuery;
-  }>('/autocomplete', async (request) => {
-    const q = request.query.q?.trim() ?? '';
-    const limit = Math.min(Number(request.query.limit) || 10, 20);
-
-    if (!q) {
-      return {
-        suggestions: [],
-      };
-    }
-
-    const searchTerm = `${q}%`;
-
-    const result = await query<{ id: string; name: string; brand: string | null }>(
-      `
-      SELECT
-        p.id,
-        p.name,
-        p.brand
-      FROM "Products" p
-      WHERE
-        LOWER(p.name) LIKE LOWER($1)
-        OR LOWER(p.brand) LIKE LOWER($1)
-      ORDER BY p.name ASC
-      LIMIT $2
-      `,
-      [searchTerm, limit],
-    );
-
-    return {
-      suggestions: result.rows.map((product) => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-      })),
-    };
-  });
 };
 
 export default searchRoutes;

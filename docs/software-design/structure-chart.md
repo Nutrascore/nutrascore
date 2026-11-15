@@ -48,19 +48,17 @@ flowchart TD
     AUTHMODULE --> DATABASE
     MODROUTES --> DATABASE
     API --> DRIZZLE["db/schema.ts and drizzle.config.ts"]
-    DRIZZLE --> MIGRATIONS["drizzle/*.sql and migration journal"]
+    DRIZZLE --> MIGRATIONS["drizzle-sqlite/*.sql and migration journal"]
     MIGRATIONS --> SQLITE["data/nutrascore.sqlite"]
     DATABASE --> SQLITE
 
     DATA --> LOADER["script/load_sqlite.py"]
-    DATA --> MIGRATOR["script/migrate_postgres_to_sqlite.py"]
     DATA --> VALIDATOR["script/validate_dataset.py"]
     VALIDATOR --> CSV
     VALIDATOR --> REPORTS["data/reports/"]
     LOADER --> PYDEPS["Python standard library"]
     LOADER --> CSV["data/processed/packaged_foods_india_cleaned.csv"]
     LOADER -->|--apply adds missing records| SQLITE
-    MIGRATOR -->|read-only source copy| SQLITE
 ```
 
 The UI route files are under `apps/web/src/routes/`; shared UI components,
@@ -74,6 +72,5 @@ through `db/product-query.ts`, while executing SQL through the SQLite database
 module.
 `script/validate_dataset.py` runs read-only quality checks and writes review
 reports only when it finds candidates. `script/load_sqlite.py` validates the
-canonical cleaned CSV and adds missing product and category data.
-`script/migrate_postgres_to_sqlite.py` is an optional read-only-source
-transfer utility for existing application data.
+canonical cleaned CSV and adds missing product and category data, including
+product-category relationships.

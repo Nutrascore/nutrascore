@@ -16,7 +16,7 @@ CSV_PATH = ROOT_DIR / "data" / "processed" / "packaged_foods_india_cleaned.csv"
 load_dotenv(ROOT_DIR / "apps" / "api" / ".env")
 ID_NAMESPACE = UUID("7f9d7a36-4d7b-4f8d-9a3a-8d8a75f94f0b")
 NUMERIC_FIELDS = {
-    "Calories_kcal": "kcal_per_100g",
+    "Calories": "calories",
     "Total_Fat_g": "fat_g",
     "Saturated_Fat_g": "saturated_fat_g",
     "Trans_Fat_g": "trans_fat_g",
@@ -98,7 +98,7 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true", help="Write missing rows to SQLite.")
     parser.add_argument(
         "--nutrition-basis",
-        choices=("per_serving", "per_100g"),
+        choices=("per_serving", "per_100g", "per_100ml"),
         help="Verified basis for nutrient values; required with --apply.",
     )
     args = parser.parse_args()
